@@ -6,18 +6,39 @@ personal defaults.
 
 ## Output contract
 
-Profiles select named outputs rather than hostnames:
+On macOS, the profile selects policy and the flake source while the host selects
+the nix-darwin output. This repository defines public personal hosts:
 
 ```text
-darwinConfigurations.personal
-darwinConfigurations.work
+darwinConfigurations.m5
+```
+
+`--host` and `DOTFILES_HOST` override host selection; otherwise the lifecycle
+commands use the macOS LocalHostName and then `hostname -s`. The selected host
+configuration must declare the selected `personal` or `work` profile.
+
+Generic `darwinConfigurations.personal` and `.work` outputs remain available for
+evaluation and composition. Linux continues to use profile outputs:
+
+```text
 homeConfigurations.<system>-personal
 homeConfigurations.<system>-work
 ```
 
-Reusable modules are exported as named `common`, `personal`, and `work`
-attributes under `darwinModules` and `homeModules`. There is no implicit default
-module alias.
+Reusable `common`, `personal`, and `work` modules are exported under
+`darwinModules` and `homeModules`. Public host modules are exported as
+`darwinModules.hosts.m5`; downstream flakes can compose the profile module with
+any additional host module.
+
+`nix/modules/profile.nix` is the single shared profile module. It declares the
+profile name and user option schema and, when evaluated by Home Manager, maps
+those values to its username, home directory, and state version. The files under
+`nix/profiles/` contain only actual `personal` and `work` policy choices.
+
+Home Manager's `home.stateVersion` remains an explicit `mkDefault` because it is
+a compatibility contract, not a value that should automatically follow the
+installed release. Downstream modules may override it deliberately. The numeric
+nix-darwin `system.stateVersion` is a separate platform contract.
 
 Set optional default remote sources independently:
 
@@ -29,33 +50,36 @@ export DOTFILES_WORK_FLAKE='github:markfeinstein/dotfiles/main'
 `DOTFILES_FLAKE` or `--flake` overrides the selected profile source for one run.
 The selected profile is persisted in `~/.config/dotfiles/profile` when chosen
 interactively or with `--profile`; `DOTFILES_PROFILE` remains a temporary
-override.
+override. Host selection is never persisted because it is derived from the
+machine unless explicitly overridden.
 
 ## Personalization
 
 The standalone outputs intentionally use my public name, email address, and
-login name from `nix/profiles/user-options.nix`. Bootstrap verifies that the
+login name from `nix/modules/profile.nix`. Bootstrap verifies that the
 selected output matches the current account, so forks should override
 `profile.user` before using those outputs on another account.
 
-The Darwin personal profile enables the fixed Space 1-9 Yabai assignments. Its
-native configuration is intentionally strict, so provision nine ordinary macOS
-Spaces before the first activation. The work profile leaves fixed assignments
-disabled. The locally signed development app uses a bundle identifier distinct
-from published Yabai bundles so macOS privacy identity does not overlap them.
+The `m5` host enables the fixed Space 1-9 Yabai assignments. The native
+configuration is intentionally strict, so provision nine ordinary macOS Spaces
+before activating a host that enables fixed targets. The locally signed
+development app uses a bundle identifier distinct from published Yabai bundles
+so macOS privacy identity does not overlap them.
 
-The machine-specific OpenLogi device identifier is not tracked. Keep it in a
-per-machine module rather than the reusable base. The module does not inherently
-need to be private: the identifier is stable hardware inventory, not a
-credential. Use a private repository only if you do not want to publish machine
-identifiers, paths, hostnames, or similar personal metadata. Declaring the value
-is more reliable than discovering it during activation, which would require the
-device to be connected and the OpenLogi agent to be running.
+The `m5` host module owns its OpenLogi device identifier. Device identifiers
+are stable hardware inventory rather than credentials, so other public or
+private host modules can declare their own value without putting it in the
+reusable profile. Declaring the value is more reliable than discovering it
+during activation, which would require the device to be connected and the
+OpenLogi agent to be running.
 
-A minimal downstream flake can contain:
+Personal host policy that is acceptable to publish belongs in this repository's
+`nix/hosts/<host>.nix`. A separate downstream repository can add private or
+organization-specific hosts by composing the exported profile module with its
+own host module:
 
 ```nix
-# flake.nix
+# flake.nix in a downstream repository
 {
   inputs = {
     dotfiles.url = "github:markfeinstein/dotfiles/main";
@@ -68,14 +92,10 @@ A minimal downstream flake can contain:
     nix-darwin,
     ...
   }: {
-    darwinConfigurations.personal = nix-darwin.lib.darwinSystem {
+    darwinConfigurations.work-mac = nix-darwin.lib.darwinSystem {
       modules = [
-        dotfiles.darwinModules.personal
-        ({config, ...}: {
-          home-manager.users.${config.profile.user.username}.imports = [
-            ./personal-private.nix
-          ];
-        })
+        dotfiles.darwinModules.work
+        ./hosts/work-mac.nix
       ];
     };
   };
@@ -83,57 +103,41 @@ A minimal downstream flake can contain:
 ```
 
 ```nix
-# personal-private.nix
-{
-  dotfiles.openlogi = {
-    enable = true;
-    deviceId = "unit:DEVICE_ID";
-  };
+# hosts/work-mac.nix
+{config, ...}: {
+  networking.hostName = "work-mac";
+
+  home-manager.users.${config.profile.user.username}.imports = [
+    ./work-home.nix
+  ];
 }
 ```
 
-Keep this flake in a separate machine-configuration repository, commit its lock
-file, and select it for personal builds:
+The downstream host can add packages, services, identity overrides, MCP trust
+policy, and Home Manager modules without changing the reusable work profile.
+Commit the downstream lock file and select the source and host independently:
 
 ```sh
-export DOTFILES_PERSONAL_FLAKE='git+ssh://git@github.com/OWNER/private-dotfiles.git'
-rebuild doctor --profile personal --remote
+export DOTFILES_WORK_FLAKE='git+ssh://git@github.com/OWNER/work-dotfiles.git'
+rebuild doctor --profile work --host work-mac --remote
 ```
 
-Bootstrap should likewise receive the private flake, not the public base, when a
-machine needs the OpenLogi configuration.
+Bootstrap accepts the same profile/source/host split.
 
 Home Assistant MCP metadata is project configuration and is checked into the
 Home Automation repository as `.pi/mcp.json`; `.pi` runtime state remains
 ignored. Endpoint and OAuth client metadata may be tracked, while Pi keeps OAuth
 tokens in its separate credential store.
 
-MCP permission pinning remains user policy rather than project policy. A machine
-module may optionally add a matching policy so declared read-only tools do not
-prompt on every call:
-
-```nix
-{
-  dotfiles.pi.mcpPermissions.trustedServers.homeassistant = {
-    exactUrl = "https://home-assistant.example/api/mcp";
-    oauth = {
-      clientId = "http://localhost:12345";
-      callbackUrl = "http://localhost:12345/callback";
-      clientName = "Pi";
-    };
-  };
-}
-```
-
-Without that independent pin, the permission extension prompts before Home
-Assistant MCP calls.
+No separate Home Assistant MCP permission pin is installed by this repository,
+so the permission extension prompts before its calls.
 
 ## Install
 
 From a reviewed copy of the bootstrap script:
 
 ```sh
-./bin/bootstrap --profile personal --flake github:markfeinstein/dotfiles/main
+./bin/bootstrap --profile personal --host m5 --flake github:markfeinstein/dotfiles/main
 ```
 
 Bootstrap accepts an existing compatible Nix installation, installs Determinate
@@ -165,11 +169,12 @@ and runs ShellCheck.
 From a checkout:
 
 ```sh
-./bin/rebuild doctor --profile personal --repo "$PWD"
-./bin/rebuild update --profile personal --repo "$PWD" --no-update
-./bin/rebuild switch --profile personal --repo "$PWD" --no-update
+./bin/rebuild doctor --profile personal --host m5 --repo "$PWD"
+./bin/rebuild update --profile personal --host m5 --repo "$PWD" --no-update
+./bin/rebuild switch --profile personal --host m5 --repo "$PWD" --no-update
 ```
 
-`update` may stage, format, build, and commit managed changes but does not
+The explicit `--host m5` is optional on that machine because LocalHostName is
+`m5`. `update` may stage, format, build, and commit managed changes but does not
 activate them. `switch` additionally activates the exact built output and can
 change native applications, macOS policy, services, and other runtime state.

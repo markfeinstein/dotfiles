@@ -3,6 +3,7 @@ set -eu
 
 profile=
 profile_from_flag=0
+host=
 flake=${DOTFILES_FLAKE:-}
 personal_flake=${DOTFILES_PERSONAL_FLAKE:-}
 work_flake=${DOTFILES_WORK_FLAKE:-}
@@ -16,13 +17,16 @@ determinate_installer_x86_64_linux_sha256=22ed14ee1b24d100d388f1fc245e3062bd5982
 
 usage() {
   cat <<'HELP'
-Usage: bootstrap [--profile personal|work] [--flake REF] [--auth-github]
+Usage: bootstrap [--profile personal|work] [--host NAME] [--flake REF] [--auth-github]
 
 Configure a new machine without Git, Homebrew, or a local checkout.
 Installs Determinate Nix when Nix is absent, then activates the selected profile.
 
-Selection precedence:
+Profile precedence:
   --profile, DOTFILES_PROFILE, persisted profile, interactive prompt
+
+Darwin host precedence:
+  --host, DOTFILES_HOST, macOS LocalHostName, hostname -s
 
 Remote source precedence:
   --flake or DOTFILES_FLAKE, then the selected profile's default flake
@@ -30,11 +34,12 @@ Remote source precedence:
 Environment:
   DOTFILES_PROFILE          temporary profile override
   DOTFILES_PROFILE_FILE     persisted profile path
+  DOTFILES_HOST             Darwin host output override
   DOTFILES_FLAKE            one-run flake override
   DOTFILES_PERSONAL_FLAKE   default personal flake
   DOTFILES_WORK_FLAKE       default work flake
 
-macOS flakes must export darwinConfigurations.<profile>.
+macOS flakes must export darwinConfigurations.<host>.
 Linux flakes must export homeConfigurations.<system>-<profile>.
 HELP
 }
@@ -61,6 +66,8 @@ while [ "$#" -gt 0 ]; do
   case $1 in
     --profile) [ "$#" -ge 2 ] || fail '--profile requires a value'; profile=$2; profile_from_flag=1; shift 2 ;;
     --profile=*) profile=${1#*=}; profile_from_flag=1; shift ;;
+    --host) [ "$#" -ge 2 ] || fail '--host requires a value'; host=$2; shift 2 ;;
+    --host=*) host=${1#*=}; shift ;;
     --flake) [ "$#" -ge 2 ] || fail '--flake requires a value'; flake=$2; shift 2 ;;
     --flake=*) flake=${1#*=}; shift ;;
     --auth-github) auth_github=1; shift ;;
@@ -84,6 +91,7 @@ fi
 [ "$(id -u)" -ne 0 ] || fail 'run as your normal account, not root'
 
 resolve_dotfiles_system
+resolve_dotfiles_host
 
 load_nix() {
   command -v nix >/dev/null 2>&1 && return 0
@@ -169,17 +177,20 @@ if [ "$auth_github" -eq 1 ]; then
 fi
 
 if [ "$os" = darwin ]; then
-  attr="darwinConfigurations.\"${profile}\""
+  attr="darwinConfigurations.\"${host}\""
   target="${flake}#${attr}.config.system.build.toplevel"
+  selected_profile=$(nix eval --refresh --raw "${flake}#${attr}.config.profile.name") || fail 'could not evaluate configuration profile'
   expected_user=$(nix eval --refresh --raw "${flake}#${attr}.config.system.primaryUser") || fail 'could not evaluate profile account'
   expected_home=$(nix eval --refresh --raw "${flake}#${attr}.config.users.users.\"${expected_user}\".home") || fail 'could not evaluate profile home directory'
 else
   config="${system}-${profile}"
   attr="homeConfigurations.\"${config}\""
   target="${flake}#${attr}.activationPackage"
+  selected_profile=$(nix eval --refresh --raw "${flake}#${attr}.config.profile.name") || fail 'could not evaluate configuration profile'
   expected_user=$(nix eval --refresh --raw "${flake}#${attr}.config.home.username") || fail 'could not evaluate profile account'
   expected_home=$(nix eval --refresh --raw "${flake}#${attr}.config.home.homeDirectory") || fail 'could not evaluate profile home directory'
 fi
+[ "$selected_profile" = "$profile" ] || fail "configuration profile '$selected_profile' does not match selected profile '$profile'"
 [ "$expected_user" = "$(id -un)" ] || fail "profile account '$expected_user' differs from current account '$(id -un)'"
 [ "$expected_home" = "$HOME" ] || fail "profile home '$expected_home' differs from HOME '$HOME'"
 
@@ -198,5 +209,9 @@ else
   "$output/activate" || fail 'Home Manager activation failed (inspect unmanaged file conflicts)'
 fi
 
-printf '\nBootstrap complete: %s / %s\n' "$profile" "$system"
+if [ "$os" = darwin ]; then
+  printf '\nBootstrap complete: %s profile / %s host / %s\n' "$profile" "$host" "$system"
+else
+  printf '\nBootstrap complete: %s profile / %s\n' "$profile" "$system"
+fi
 printf 'Open a new terminal to use the installed environment.\n'

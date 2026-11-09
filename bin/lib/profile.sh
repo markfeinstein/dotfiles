@@ -52,3 +52,24 @@ resolve_dotfiles_system() {
   esac
   system="${arch}-${os}"
 }
+
+resolve_dotfiles_host() {
+  if [ "$os" != darwin ]; then
+    [ -z "$host" ] && [ -z "${DOTFILES_HOST:-}" ] || fail '--host and DOTFILES_HOST are supported only on macOS'
+    return
+  fi
+
+  if [ -z "$host" ] && [ -n "${DOTFILES_HOST:-}" ]; then
+    host=$DOTFILES_HOST
+  fi
+  if [ -z "$host" ] && command -v scutil >/dev/null 2>&1; then
+    host=$(scutil --get LocalHostName 2>/dev/null || true)
+  fi
+  if [ -z "$host" ]; then
+    host=$(hostname -s 2>/dev/null || true)
+  fi
+
+  case $host in
+    ''|*[!A-Za-z0-9._-]*) fail "invalid Darwin host configuration name: ${host:-empty}" ;;
+  esac
+}

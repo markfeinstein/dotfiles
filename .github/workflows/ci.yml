@@ -65,10 +65,8 @@ jobs:
         run: |
           nix shell --inputs-from . nixpkgs#shellcheck --command shellcheck \
             bin/bootstrap \
-            bin/configure-repository-worktrees \
             bin/git-project \
             bin/lib/profile.sh \
-            bin/lib/worktrees.sh \
             bin/rebuild \
             bin/rex/label-window \
             bin/rex/lazygit \
