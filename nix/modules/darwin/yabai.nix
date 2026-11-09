@@ -303,7 +303,7 @@
       # Use the native AppKit menu instead of the expanded panel session.
       menubar = "on";
       menubar_interface = "menu";
-      menubar_style = "expanded";
+      menubar_style = "automatic";
       menubar_space_filter = "occupied";
 
       window_animation_duration = 0.0;
@@ -359,6 +359,14 @@
         (unmanagedRule "system-settings" "System Settings")
         (unmanagedRule "finder" "Finder")
         (unmanagedRule "1password" "1Password")
+        {
+          label = "obsidian-settings";
+          match = {
+            app.pattern = "Obsidian";
+            title.pattern = "^Settings - ";
+          };
+          effects.manage = false;
+        }
         (unmanagedRule "calculator" "Calculator")
         (unmanagedRule "activity-monitor" "Activity Monitor")
         (unmanagedRule "archive-utility" "Archive Utility")

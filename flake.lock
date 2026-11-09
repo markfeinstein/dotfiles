@@ -195,11 +195,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1794246424,
-        "narHash": "sha256-I8zbMGkyZq4H2b3jhlSO8gZedXDnwfDUHI3+soZTQcI=",
+        "lastModified": 1794250848,
+        "narHash": "sha256-wKm1+yIcnlLOdKApKv1I4LCuUkTN/xUEpmpMqLuGEQU=",
         "owner": "markfeinstein",
         "repo": "yabai",
-        "rev": "a7000c6cc66edc34db5887210151a6c778a7fe6e",
+        "rev": "427ff38b8b0d1348330e056d5d831b6e4abf8430",
         "type": "github"
       },
       "original": {

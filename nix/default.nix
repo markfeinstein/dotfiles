@@ -35,9 +35,16 @@
         };
       } ''
         app="$out/Applications/Yabai.app"
+        executable="$app/Contents/MacOS/yabai"
+        source_executable=${rawYabai}/bin/yabai
         mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-        /usr/bin/lipo -thin arm64 ${rawYabai}/bin/yabai -output "$app/Contents/MacOS/yabai"
-        chmod 0755 "$app/Contents/MacOS/yabai"
+        /usr/bin/lipo "$source_executable" -verify_arch arm64
+        if [ "$(/usr/bin/lipo -archs "$source_executable")" = arm64 ]; then
+          cp "$source_executable" "$executable"
+        else
+          /usr/bin/lipo -thin arm64 "$source_executable" -output "$executable"
+        fi
+        chmod 0755 "$executable"
         /usr/bin/codesign --remove-signature "$app/Contents/MacOS/yabai"
         cat >"$app/Contents/Info.plist" <<'EOF'
         <?xml version="1.0" encoding="UTF-8"?>
@@ -176,6 +183,7 @@
       work = mkDarwin [darwinWork];
     }
     // lib.mapAttrs (_: hostModule: mkDarwin [darwinPersonal hostModule]) darwinHosts;
+  m5Pkgs = darwinConfigurations.m5.pkgs;
   checks =
     lib.recursiveUpdate
     (lib.genAttrs systems (system: {
@@ -187,6 +195,18 @@
         darwin-personal = darwinConfigurations.personal.config.system.build.toplevel;
         darwin-work = darwinConfigurations.work.config.system.build.toplevel;
         darwin-m5 = darwinConfigurations.m5.config.system.build.toplevel;
+        yabai-app-bundle = m5Pkgs.runCommand "yabai-app-bundle-check" {} ''
+          app=${m5Pkgs.yabaiAppBundle}/Applications/Yabai.app
+          executable="$app/Contents/MacOS/yabai"
+
+          test -x "$executable"
+          /usr/bin/lipo "$executable" -verify_arch arm64
+          test "$(/usr/bin/lipo -archs "$executable")" = arm64
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = \
+            com.markfeinstein.yabai.local-development
+          (cd "$app" && ${m5Pkgs.coreutils}/bin/sha256sum -c Contents/Resources/content-manifest.sha256)
+          touch "$out"
+        '';
       };
     };
 in {
