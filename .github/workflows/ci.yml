@@ -67,7 +67,6 @@ jobs:
             bin/bootstrap \
             bin/configure-repository-worktrees \
             bin/git-project \
-            bin/home-automation-pi-worktree-hook \
             bin/lib/profile.sh \
             bin/lib/worktrees.sh \
             bin/rebuild \

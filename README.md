@@ -38,21 +38,84 @@ login name from `nix/profiles/user-options.nix`. Bootstrap verifies that the
 selected output matches the current account, so forks should override
 `profile.user` before using those outputs on another account.
 
-Machine-local Home Assistant and OpenLogi identifiers are not tracked. Both
-integrations are disabled in the public profile and can be enabled by layering a
-private Home Manager module over `homeModules.personal`, for example:
+The Darwin personal profile enables the fixed Space 1-9 Yabai assignments. Its
+native configuration is intentionally strict, so provision nine ordinary macOS
+Spaces before the first activation. The work profile leaves fixed assignments
+disabled. The locally signed development app uses a bundle identifier distinct
+from published Yabai bundles so macOS privacy identity does not overlap them.
+
+The machine-specific OpenLogi device identifier is not tracked. Keep it in a
+per-machine module rather than the reusable base. The module does not inherently
+need to be private: the identifier is stable hardware inventory, not a
+credential. Use a private repository only if you do not want to publish machine
+identifiers, paths, hostnames, or similar personal metadata. Declaring the value
+is more reliable than discovering it during activation, which would require the
+device to be connected and the OpenLogi agent to be running.
+
+A minimal downstream flake can contain:
 
 ```nix
+# flake.nix
+{
+  inputs = {
+    dotfiles.url = "github:markfeinstein/dotfiles/main";
+    nixpkgs.follows = "dotfiles/nixpkgs";
+    nix-darwin.follows = "dotfiles/nix-darwin";
+  };
+
+  outputs = {
+    dotfiles,
+    nix-darwin,
+    ...
+  }: {
+    darwinConfigurations.personal = nix-darwin.lib.darwinSystem {
+      modules = [
+        dotfiles.darwinModules.personal
+        ({config, ...}: {
+          home-manager.users.${config.profile.user.username}.imports = [
+            ./personal-private.nix
+          ];
+        })
+      ];
+    };
+  };
+}
+```
+
+```nix
+# personal-private.nix
 {
   dotfiles.openlogi = {
     enable = true;
     deviceId = "unit:DEVICE_ID";
   };
+}
+```
 
-  dotfiles.pi.homeAssistant = {
-    enable = true;
-    repositoryPath = "/absolute/path/to/home-automation";
-    endpointUrl = "https://home-assistant.example/api/mcp";
+Keep this flake in a separate machine-configuration repository, commit its lock
+file, and select it for personal builds:
+
+```sh
+export DOTFILES_PERSONAL_FLAKE='git+ssh://git@github.com/OWNER/private-dotfiles.git'
+rebuild doctor --profile personal --remote
+```
+
+Bootstrap should likewise receive the private flake, not the public base, when a
+machine needs the OpenLogi configuration.
+
+Home Assistant MCP metadata is project configuration and is checked into the
+Home Automation repository as `.pi/mcp.json`; `.pi` runtime state remains
+ignored. Endpoint and OAuth client metadata may be tracked, while Pi keeps OAuth
+tokens in its separate credential store.
+
+MCP permission pinning remains user policy rather than project policy. A machine
+module may optionally add a matching policy so declared read-only tools do not
+prompt on every call:
+
+```nix
+{
+  dotfiles.pi.mcpPermissions.trustedServers.homeassistant = {
+    exactUrl = "https://home-assistant.example/api/mcp";
     oauth = {
       clientId = "http://localhost:12345";
       callbackUrl = "http://localhost:12345/callback";
@@ -62,8 +125,8 @@ private Home Manager module over `homeModules.personal`, for example:
 }
 ```
 
-The OAuth values above are client metadata, not credentials. Runtime credentials
-remain outside the Nix store and repository.
+Without that independent pin, the permission extension prompts before Home
+Assistant MCP calls.
 
 ## Install
 

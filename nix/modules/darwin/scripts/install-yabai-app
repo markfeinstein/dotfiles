@@ -6,13 +6,13 @@ source_app=
 primary_user=
 primary_home=
 comparator=
+bundle_identifier=
 destination=/Applications/Yabai.app
-bundle_identifier=com.asmvik.yabai
 transaction_root=/Applications/.Yabai.app.activation.lock
 restart_marker=/var/run/yabai-app-install-restart-required
 
 usage() {
-  echo "usage: install-yabai-app --source-app PATH --primary-user USER --primary-home PATH --comparator PATH" >&2
+  echo "usage: install-yabai-app --source-app PATH --primary-user USER --primary-home PATH --comparator PATH --bundle-identifier ID" >&2
   exit 64
 }
 
@@ -38,11 +38,16 @@ while (($#)); do
     comparator=$2
     shift 2
     ;;
+  --bundle-identifier)
+    (($# >= 2)) || usage
+    bundle_identifier=$2
+    shift 2
+    ;;
   *) usage ;;
   esac
 done
 
-[[ $source_app == /* && -n $primary_user && $primary_home == /* && $comparator == /* ]] || usage
+[[ $source_app == /* && -n $primary_user && $primary_home == /* && $comparator == /* && -n $bundle_identifier ]] || usage
 
 source_manifest="$source_app/Contents/Resources/content-manifest.sha256"
 rollback_app="$transaction_root/rollback/Yabai.app"
