@@ -23,6 +23,38 @@ function M.cleanup_formatters(bufnr)
 	return formatters
 end
 
+local tooling = vim.g.dotfiles_neovim_tooling or {}
+local formatters_by_ft = {
+	["_"] = { lsp_format = "first" },
+	["*"] = M.cleanup_formatters,
+	lua = { "stylua" },
+	nix = { "alejandra" },
+	nu = { "nufmt" },
+	sh = { "shfmt" },
+}
+
+if tooling.go then
+	formatters_by_ft.go = { "goimports-reviser", "gofumpt" }
+end
+if tooling.rust then
+	formatters_by_ft.rust = { "rustfmt" }
+end
+if tooling.web then
+	for _, filetype in ipairs({
+		"css",
+		"html",
+		"javascript",
+		"javascriptreact",
+		"json",
+		"jsonc",
+		"typescript",
+		"typescriptreact",
+		"yaml",
+	}) do
+		formatters_by_ft[filetype] = { "prettier" }
+	end
+end
+
 M.opts = {
 	default_format_opts = { lsp_format = "fallback" },
 	formatters = {
@@ -33,25 +65,7 @@ M.opts = {
 			args = { "-separate-named", "-set-alias", "-use-cache", "$FILENAME" },
 		},
 	},
-	formatters_by_ft = {
-		["_"] = { lsp_format = "first" },
-		["*"] = M.cleanup_formatters,
-		css = { "prettier" },
-		go = { "goimports-reviser", "gofumpt" },
-		html = { "prettier" },
-		javascript = { "prettier" },
-		javascriptreact = { "prettier" },
-		json = { "prettier" },
-		jsonc = { "prettier" },
-		lua = { "stylua" },
-		nix = { "alejandra" },
-		nu = { "nufmt" },
-		rust = { "rustfmt" },
-		sh = { "shfmt" },
-		typescript = { "prettier" },
-		typescriptreact = { "prettier" },
-		yaml = { "prettier" },
-	},
+	formatters_by_ft = formatters_by_ft,
 }
 
 function M.should_format_on_save(filetype)

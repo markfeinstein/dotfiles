@@ -53,6 +53,25 @@ interactively or with `--profile`; `DOTFILES_PROFILE` remains a temporary
 override. Host selection is never persisted because it is derived from the
 machine unless explicitly overridden.
 
+## Neovim tooling groups
+
+Neovim's wrapped runtime keeps core editor dependencies separate from optional
+Go, Rust, web, infrastructure, SQL, and document-rendering tool groups. All
+groups remain enabled by default so existing profiles preserve their current
+behavior. Profiles and downstream modules can reduce their closure by disabling
+groups whose tools come from project development shells instead:
+
+```nix
+dotfiles.neovim.tooling = {
+  documents.enable = false;
+  rust.enable = false;
+  sql.enable = false;
+};
+```
+
+Disabling a group also removes its configured formatters, linters, and language
+servers from Neovim's active configuration.
+
 ## Personalization
 
 The standalone outputs intentionally use my public name, email address, and

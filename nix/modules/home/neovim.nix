@@ -64,7 +64,7 @@
     "zsh"
   ];
 
-  baseRuntimePackages = [
+  coreRuntimePackages = [
     # Core plugin and picker dependencies.
     pkgs.fd
     pkgs.fzf
@@ -72,49 +72,71 @@
     pkgs.git
     pkgs.ripgrep
 
-    # Formatters.
+    # Core formatters and linters.
     pkgs.alejandra
-    pkgs.gofumpt
-    pkgs.goimports-reviser
     pkgs.nufmt
-    pkgs.prettier
-    pkgs.rustfmt
+    pkgs.shellcheck
     pkgs.shfmt
     pkgs.stylua
 
-    # Language servers and required language runtimes.
+    # Core language servers and required runtimes.
     pkgs.bash-language-server
-    pkgs.buf
-    pkgs.docker-language-server
-    pkgs.go
-    pkgs.gopls
-    pkgs.htmx-lsp
     pkgs.lua-language-server
     pkgs.marksman
     pkgs.nix
     pkgs.nixd
     pkgs.nushell
+    pkgs.yaml-language-server
+  ];
+
+  goRuntimePackages = [
+    pkgs.delve
+    pkgs.go
+    pkgs.gofumpt
+    pkgs.goimports-reviser
+    pkgs.golangci-lint
+    pkgs.gopls
+    pkgs.gotestsum
+  ];
+
+  rustRuntimePackages = [
     pkgs.rust-analyzer
-    pkgs.sqls
+    pkgs.rustfmt
+  ];
+
+  webRuntimePackages = [
+    pkgs.htmx-lsp
+    pkgs.prettier
     pkgs.tailwindcss-language-server
-    pkgs.terraform-ls
     pkgs.typescript-language-server
     pkgs.vscode-langservers-extracted
-    pkgs.yaml-language-server
+  ];
 
-    # Linters, testing, and debugging.
-    pkgs.delve
-    pkgs.golangci-lint
-    pkgs.gotestsum
-    pkgs.shellcheck
+  infrastructureRuntimePackages = [
+    pkgs.buf
+    pkgs.docker-language-server
+    pkgs.terraform-ls
+  ];
+
+  sqlRuntimePackages = [
     pkgs.sqlfluff
+    pkgs.sqls
+  ];
 
-    # Markdown, image, diagram, and document rendering.
+  documentRuntimePackages = [
     pkgs.ghostscript
     pkgs.imagemagick
     pkgs.mermaid-cli
     pkgs.tectonic
   ];
+
+  groupedRuntimePackages =
+    lib.optionals cfg.tooling.go.enable goRuntimePackages
+    ++ lib.optionals cfg.tooling.rust.enable rustRuntimePackages
+    ++ lib.optionals cfg.tooling.web.enable webRuntimePackages
+    ++ lib.optionals cfg.tooling.infrastructure.enable infrastructureRuntimePackages
+    ++ lib.optionals cfg.tooling.sql.enable sqlRuntimePackages
+    ++ lib.optionals cfg.tooling.documents.enable documentRuntimePackages;
 
   baseStartPlugins = [
     pkgs.vimPlugins.flash-nvim
@@ -159,6 +181,15 @@
     pkgs.vimPlugins.copilot-lua
   ];
 
+  toolingState = {
+    documents = cfg.tooling.documents.enable;
+    go = cfg.tooling.go.enable;
+    infrastructure = cfg.tooling.infrastructure.enable;
+    rust = cfg.tooling.rust.enable;
+    sql = cfg.tooling.sql.enable;
+    web = cfg.tooling.web.enable;
+  };
+
   neovimTreesitter =
     pkgs.vimPlugins.nvim-treesitter.withPlugins (grammars:
       map (name: grammars.${name}) cfg.treesitterGrammars);
@@ -177,6 +208,7 @@
           then "true"
           else "false"
         }"
+        "vim.g.dotfiles_neovim_tooling = vim.json.decode([==[${builtins.toJSON toolingState}]==])"
         "vim.g.dotfiles_obsidian_workspaces = vim.json.decode([==[${builtins.toJSON cfg.obsidian.workspaces}]==])"
         "return true"
       ]
@@ -199,6 +231,15 @@ in {
   options.dotfiles.neovim = {
     features.ai = lib.mkEnableOption "CodeCompanion and Copilot integration";
 
+    tooling = {
+      documents.enable = lib.mkEnableOption "document, image, diagram, and TeX rendering tools" // {default = true;};
+      go.enable = lib.mkEnableOption "Go formatting, language-server, linting, testing, and debugging tools" // {default = true;};
+      infrastructure.enable = lib.mkEnableOption "Docker, Protobuf, and Terraform language tools" // {default = true;};
+      rust.enable = lib.mkEnableOption "Rust formatting and language-server tools" // {default = true;};
+      sql.enable = lib.mkEnableOption "SQL language-server and linting tools" // {default = true;};
+      web.enable = lib.mkEnableOption "web formatting and language-server tools" // {default = true;};
+    };
+
     obsidian.workspaces = lib.mkOption {
       type = lib.types.listOf (lib.types.submodule {
         options = {
@@ -218,8 +259,8 @@ in {
 
     runtimePackages = lib.mkOption {
       type = lib.types.listOf lib.types.package;
-      default = baseRuntimePackages;
-      description = "Packages exposed only inside Neovim's wrapped PATH";
+      default = coreRuntimePackages ++ groupedRuntimePackages;
+      description = "Core and enabled tooling-group packages exposed only inside Neovim's wrapped PATH";
     };
 
     startPlugins = lib.mkOption {

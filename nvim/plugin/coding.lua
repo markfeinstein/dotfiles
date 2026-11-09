@@ -36,12 +36,16 @@ vim.api.nvim_create_autocmd("BufWritePre", {
 
 -- Linting
 
-local linters_by_ft = {
-	go = { "golangcilint" },
-	sql = { "sqlfluff" },
-	mysql = { "sqlfluff" },
-	plsql = { "sqlfluff" },
-}
+local tooling = vim.g.dotfiles_neovim_tooling or {}
+local linters_by_ft = {}
+if tooling.go then
+	linters_by_ft.go = { "golangcilint" }
+end
+if tooling.sql then
+	for _, filetype in ipairs({ "mysql", "plsql", "sql" }) do
+		linters_by_ft[filetype] = { "sqlfluff" }
+	end
+end
 
 vim.g.golangci_lint_on_save = false
 
