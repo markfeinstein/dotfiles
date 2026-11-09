@@ -3,6 +3,7 @@ set -euo pipefail
 
 profile=''
 profile_from_flag=0
+host=''
 flake_override="${DOTFILES_FLAKE:-}"
 personal_flake="${DOTFILES_PERSONAL_FLAKE:-}"
 work_flake="${DOTFILES_WORK_FLAKE:-}"
@@ -42,7 +43,8 @@ Modes:
   rollback   Activate the previous system or Home Manager generation
 
 Selection:
-  --profile personal|work  Select and persist an output profile
+  --profile personal|work  Select and persist a source/profile policy
+  --host NAME              Select a Darwin host output (defaults to LocalHostName)
   --flake REF              Override the selected remote flake source
   --remote                 Use a remote flake source
   --local                  Use a local Git checkout
@@ -66,12 +68,15 @@ Workflow:
 Profile precedence:
   --profile, DOTFILES_PROFILE, persisted profile, interactive prompt
 
+Darwin host precedence:
+  --host, DOTFILES_HOST, macOS LocalHostName, hostname -s
+
 Remote source precedence:
   --flake or DOTFILES_FLAKE, then DOTFILES_PERSONAL_FLAKE or
   DOTFILES_WORK_FLAKE for the selected profile
 
 Environment:
-  DOTFILES_PROFILE, DOTFILES_PROFILE_FILE, DOTFILES_FLAKE
+  DOTFILES_PROFILE, DOTFILES_PROFILE_FILE, DOTFILES_HOST, DOTFILES_FLAKE
   DOTFILES_PERSONAL_FLAKE, DOTFILES_WORK_FLAKE, DOTFILES_REPO
 HELP
 }
@@ -121,10 +126,11 @@ esac
 
 while (($#)); do
   case "$1" in
-    --profile|--flake|--repo|--input|--commit-message)
+    --profile|--host|--flake|--repo|--input|--commit-message)
       (($# >= 2)) || fail "$1 needs a value"
       case "$1" in
         --profile) profile=$2; profile_from_flag=1 ;;
+        --host) host=$2 ;;
         --flake) flake_override=$2 ;;
         --repo) repo=$2; source_mode=local ;;
         --input) input_updates+=("$2") ;;
@@ -132,6 +138,7 @@ while (($#)); do
       esac
       shift 2 ;;
     --profile=*) profile=${1#*=}; profile_from_flag=1; shift ;;
+    --host=*) host=${1#*=}; shift ;;
     --flake=*) flake_override=${1#*=}; shift ;;
     --repo=*) repo=${1#*=}; source_mode=local; shift ;;
     --input=*) input_updates+=("${1#*=}"); shift ;;
@@ -154,6 +161,7 @@ while (($#)); do
 done
 
 resolve_dotfiles_system
+resolve_dotfiles_host
 
 if [[ "$mode" != rollback ]]; then
   select_dotfiles_profile
@@ -254,21 +262,22 @@ fi
 [[ "$source_mode" != remote || -z "$manual_message" ]] || fail 'remote mode cannot commit'
 
 if [[ "$os" == darwin ]]; then
-  config=$profile
-  attr="darwinConfigurations.\"$profile\""
+  config=$host
+  attr="darwinConfigurations.\"$host\""
   target="${source_ref}#${attr}.config.system.build.toplevel"
 else
   config="${system}-${profile}"
   attr="homeConfigurations.\"$config\""
   target="${source_ref}#${attr}.activationPackage"
 fi
-printf 'Source: %s\nMode: %s / %s\nConfiguration: %s\n' \
-  "$source_ref" "$source_mode" "$mode" "$config"
+printf 'Source: %s\nMode: %s / %s\nProfile: %s\nConfiguration: %s\n' \
+  "$source_ref" "$source_mode" "$mode" "$profile" "$config"
 
 validate_identity() {
-  local user home
+  local user home selected_profile
   local -a eval_args=(--raw --no-write-lock-file)
   [[ "$source_mode" != remote ]] || eval_args+=(--refresh)
+  selected_profile=$(nix eval "${eval_args[@]}" "${source_ref}#${attr}.config.profile.name") || fail 'configuration profile eval failed'
   if [[ "$os" == darwin ]]; then
     user=$(nix eval "${eval_args[@]}" "${source_ref}#${attr}.config.system.primaryUser") || fail 'profile username eval failed'
     home=$(nix eval "${eval_args[@]}" "${source_ref}#${attr}.config.users.users.\"${user}\".home") || fail 'profile home eval failed'
@@ -276,6 +285,8 @@ validate_identity() {
     user=$(nix eval "${eval_args[@]}" "${source_ref}#${attr}.config.home.username") || fail 'profile username eval failed'
     home=$(nix eval "${eval_args[@]}" "${source_ref}#${attr}.config.home.homeDirectory") || fail 'profile home eval failed'
   fi
+  [[ "$selected_profile" == "$profile" ]] ||
+    fail "configuration profile '$selected_profile' does not match selected profile '$profile'"
   [[ "$user" == "$(id -un)" && "$home" == "$HOME" ]] ||
     fail "profile identity ($user, $home) does not match current account ($(id -un), $HOME)"
 }
@@ -319,7 +330,7 @@ if [[ "$mode" == doctor ]]; then
     fi
   fi
   validate_identity
-  log 'Selected profile output evaluates successfully'
+  log 'Selected configuration output evaluates successfully'
   exit 0
 fi
 
@@ -328,7 +339,7 @@ if ((dry_run)); then
   if [[ "$source_mode" == local ]]; then
     printf 'Would stage managed paths, scan, format, update inputs, build, and commit.\n'
   else
-    printf 'Would validate and build the selected remote profile.\n'
+    printf 'Would validate and build the selected remote configuration.\n'
   fi
   [[ "$mode" != switch ]] || printf 'Would activate the exact built output.\n'
   exit 0

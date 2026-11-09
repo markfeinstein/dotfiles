@@ -91,10 +91,7 @@
       overlays = [overlay];
     };
 
-  homeCommon.imports = [
-    ./modules/home
-    ./profiles/home-common.nix
-  ];
+  homeCommon.imports = [./modules/home];
   homePersonal = {
     imports = [
       homeCommon
@@ -115,7 +112,7 @@
   darwinFoundation = {
     imports = [
       ./modules/darwin
-      ./modules/darwin/profile.nix
+      ./modules/profile.nix
       home-manager.darwinModules.home-manager
       nix-homebrew.darwinModules.nix-homebrew
       ({config, ...}: {
@@ -139,11 +136,11 @@
     home-manager.users.${config.profile.user.username}.imports = [homeModule];
   };
 
-  darwinPersonal = {
-    imports = [(mkDarwinProfile "personal" homePersonal)];
-    dotfiles.yabai.fixedSpaceTargets = true;
-  };
+  darwinPersonal = mkDarwinProfile "personal" homePersonal;
   darwinWork = mkDarwinProfile "work" homeWork;
+  darwinHosts = {
+    m5 = ./hosts/m5.nix;
+  };
 
   mkHome = system: profileModule:
     home-manager.lib.homeManagerConfiguration {
@@ -151,14 +148,15 @@
       modules = [profileModule];
     };
 
-  mkDarwin = profileModule:
+  mkDarwin = modules:
     nix-darwin.lib.darwinSystem {
-      modules = [
-        profileModule
-        (_: {
-          system.configurationRevision = self.rev or self.dirtyRev or null;
-        })
-      ];
+      modules =
+        modules
+        ++ [
+          (_: {
+            system.configurationRevision = self.rev or self.dirtyRev or null;
+          })
+        ];
     };
 
   homeConfigurations = builtins.listToAttrs (
@@ -172,10 +170,12 @@
     )
     systems
   );
-  darwinConfigurations = {
-    personal = mkDarwin darwinPersonal;
-    work = mkDarwin darwinWork;
-  };
+  darwinConfigurations =
+    {
+      personal = mkDarwin [darwinPersonal];
+      work = mkDarwin [darwinWork];
+    }
+    // lib.mapAttrs (_: hostModule: mkDarwin [darwinPersonal hostModule]) darwinHosts;
   checks =
     lib.recursiveUpdate
     (lib.genAttrs systems (system: {
@@ -186,6 +186,7 @@
       aarch64-darwin = {
         darwin-personal = darwinConfigurations.personal.config.system.build.toplevel;
         darwin-work = darwinConfigurations.work.config.system.build.toplevel;
+        darwin-m5 = darwinConfigurations.m5.config.system.build.toplevel;
       };
     };
 in {
@@ -196,7 +197,6 @@ in {
   in {
     inherit
       (pkgs)
-      configure-repository-worktrees
       git-project
       git-readonly
       ;
@@ -212,6 +212,7 @@ in {
     common = darwinFoundation;
     personal = darwinPersonal;
     work = darwinWork;
+    hosts = darwinHosts;
   };
 
   inherit

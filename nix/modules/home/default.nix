@@ -1,5 +1,6 @@
 {
   imports = [
+    ../profile.nix
     ./bat.nix
     ./carapace.nix
     ./credentials.nix

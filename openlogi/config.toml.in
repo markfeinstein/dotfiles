@@ -1,4 +1,4 @@
-schema_version = 10
+schema_version = 11
 selected_device = "@OPENLOGI_DEVICE_ID@"
 
 [devices."@OPENLOGI_DEVICE_ID@".identity]
@@ -8,10 +8,10 @@ kind = "mouse"
 
 [app_settings]
 launch_at_login = true
-check_for_updates = false
+check_for_updates = true
 auto_install_updates = false
 update_prompt_seen = true
-show_in_menu_bar = true
+show_in_menu_bar = false
 capture_mouse_events = true
 smooth_scroll = false
 vertical_scroll_sensitivity = 14
@@ -26,6 +26,14 @@ mouse_profile_target = "pointer"
 low_battery_notifications = true
 lock_key_notifications = true
 animate_desktop_switch = true
+
+[app_settings.momentum_scrolling]
+enabled = false
+pixels_per_notch = 28
+glide_shape = "smooth"
+max_glide_speed = 8000
+glide_ms = 400
+repeat_boost = 135
 
 [devices."@OPENLOGI_DEVICE_ID@".identity.model_info]
 entity_count = 3
@@ -67,6 +75,9 @@ virtual_thumbwheel = false
 pointer_scaling = false
 force_sensing = false
 disable_keys = false
+onboard_profiles = false
+button_spy = false
+sidetone = false
 
 [devices."@OPENLOGI_DEVICE_ID@".links."direct:046d:b023".capabilities]
 buttons = true
@@ -87,6 +98,9 @@ virtual_thumbwheel = false
 pointer_scaling = false
 force_sensing = false
 disable_keys = false
+onboard_profiles = false
+button_spy = false
+sidetone = false
 
 [devices."@OPENLOGI_DEVICE_ID@".bindings]
 Back = "BrowserBack"
