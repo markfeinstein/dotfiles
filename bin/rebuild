@@ -1,0 +1,556 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+profile=''
+profile_from_flag=0
+flake_override="${DOTFILES_FLAKE:-}"
+personal_flake="${DOTFILES_PERSONAL_FLAKE:-}"
+work_flake="${DOTFILES_WORK_FLAKE:-}"
+profile_file="${DOTFILES_PROFILE_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles/profile}"
+repo="${DOTFILES_REPO:-}"
+source_mode=auto
+mode=switch
+dry_run=0
+update_inputs=1
+offline_fallback=0
+no_commit=0
+stage_all=0
+scan_secrets=1
+health_check=1
+yes=0
+fallback_message=0
+manual_message=''
+input_updates=()
+nix_args=()
+start_time=$(date +%s)
+lock_dir=''
+tmp_dir=''
+profile_tmp=''
+activated=no
+committed=no
+
+usage() {
+  cat <<'HELP'
+Usage: rebuild [switch|doctor|update|rollback] [options]
+
+A bare `rebuild` runs switch mode.
+
+Modes:
+  switch     Update, build, commit, and activate (default)
+  doctor     Evaluate prerequisites, output selection, and account identity
+  update     Update, build, and commit without activation
+  rollback   Activate the previous system or Home Manager generation
+
+Selection:
+  --profile personal|work  Select and persist an output profile
+  --flake REF              Override the selected remote flake source
+  --remote                 Use a remote flake source
+  --local                  Use a local Git checkout
+  --repo PATH              Local repository path (implies --local)
+  --input NAME             Update only this input; repeat for several inputs
+
+Workflow:
+  --dry-run                Preview switch or update without changing files
+  --no-update              Keep the existing flake.lock
+  --offline-fallback       Continue with the previous lock after update failure
+  --no-commit              Leave validated changes staged and do not commit
+  --stage-all              Stage every nonignored repository path
+  --no-secret-scan         Explicitly skip Gitleaks staged-content scanning
+  --commit-message TEXT    Use this conventional commit subject
+  --fallback-message       Permit a generic subject if Pi is unavailable
+  --no-health-check        Skip the optional post-activation hook
+  --yes, -y                Approve review prompts non-interactively
+  --show-trace, -L         Pass Nix diagnostics to builds
+  --help, -h               Show this help
+
+Profile precedence:
+  --profile, DOTFILES_PROFILE, persisted profile, interactive prompt
+
+Remote source precedence:
+  --flake or DOTFILES_FLAKE, then DOTFILES_PERSONAL_FLAKE or
+  DOTFILES_WORK_FLAKE for the selected profile
+
+Environment:
+  DOTFILES_PROFILE, DOTFILES_PROFILE_FILE, DOTFILES_FLAKE
+  DOTFILES_PERSONAL_FLAKE, DOTFILES_WORK_FLAKE, DOTFILES_REPO
+HELP
+}
+
+fail() { printf 'rebuild: ERROR: %s\n' "$*" >&2; exit 1; }
+log() { printf '\n==> %s\n' "$*"; }
+need() { command -v "$1" >/dev/null 2>&1 || fail "missing required tool: $1"; }
+
+# shellcheck source=bin/lib/profile.sh
+source "$(dirname -- "$(realpath -- "${BASH_SOURCE[0]}")")/lib/profile.sh"
+
+script=${BASH_SOURCE[0]}
+[[ "$script" == */* ]] || script=$(command -v "$script")
+script_dir=$(cd -P "$(dirname "$script")" && pwd -P)
+confirm() {
+  ((yes)) && return 0
+  [[ -r /dev/tty ]] || fail 'interactive approval required (or pass --yes)'
+  local answer
+  printf '%s [y/N] ' "$1" >/dev/tty
+  IFS= read -r answer </dev/tty || fail 'no terminal input'
+  [[ "$answer" == y || "$answer" == Y || "$answer" == yes || "$answer" == YES ]]
+}
+cleanup() {
+  local status=$?
+  trap - EXIT
+  [[ -z "$lock_dir" ]] || rm -rf -- "$lock_dir"
+  [[ -z "$tmp_dir" ]] || rm -rf -- "$tmp_dir"
+  [[ -z "$profile_tmp" ]] || rm -f -- "$profile_tmp"
+  if ((status != 0)); then
+    printf '\nrebuild failed (exit %s). Files and staged changes were preserved.\n' "$status" >&2
+    [[ "$committed" == yes ]] && printf 'Git commit exists; activation may not have completed.\n' >&2
+  fi
+  printf 'Result: %s | commit: %s | activated: %s | elapsed: %ss\n' \
+    "$mode" "$committed" "$activated" "$(( $(date +%s) - start_time ))"
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+case "${1:-}" in
+  switch|doctor|update|rollback) mode=$1; shift ;;
+  '') ;;
+  -*) ;;
+  *) fail "unknown mode: $1" ;;
+esac
+
+while (($#)); do
+  case "$1" in
+    --profile|--flake|--repo|--input|--commit-message)
+      (($# >= 2)) || fail "$1 needs a value"
+      case "$1" in
+        --profile) profile=$2; profile_from_flag=1 ;;
+        --flake) flake_override=$2 ;;
+        --repo) repo=$2; source_mode=local ;;
+        --input) input_updates+=("$2") ;;
+        --commit-message) manual_message=$2 ;;
+      esac
+      shift 2 ;;
+    --profile=*) profile=${1#*=}; profile_from_flag=1; shift ;;
+    --flake=*) flake_override=${1#*=}; shift ;;
+    --repo=*) repo=${1#*=}; source_mode=local; shift ;;
+    --input=*) input_updates+=("${1#*=}"); shift ;;
+    --commit-message=*) manual_message=${1#*=}; shift ;;
+    --remote) [[ "$source_mode" != local ]] || fail '--remote conflicts with --local/--repo'; source_mode=remote; shift ;;
+    --local) [[ "$source_mode" != remote ]] || fail '--local conflicts with --remote'; source_mode=local; shift ;;
+    --dry-run) dry_run=1; shift ;;
+    --no-update) update_inputs=0; shift ;;
+    --offline-fallback) offline_fallback=1; shift ;;
+    --no-commit) no_commit=1; shift ;;
+    --stage-all) stage_all=1; shift ;;
+    --no-secret-scan) scan_secrets=0; shift ;;
+    --no-health-check) health_check=0; shift ;;
+    --fallback-message) fallback_message=1; shift ;;
+    --yes|-y) yes=1; shift ;;
+    --show-trace|-L|--print-build-logs) nix_args+=("$1"); shift ;;
+    -h|--help) usage; trap - EXIT; exit 0 ;;
+    *) fail "unknown option: $1" ;;
+  esac
+done
+
+resolve_dotfiles_system
+
+if [[ "$mode" != rollback ]]; then
+  select_dotfiles_profile
+elif [[ -n "$profile" || -n "${DOTFILES_PROFILE:-}" ]]; then
+  select_dotfiles_profile
+fi
+
+[[ "$update_inputs" == 0 || "$update_inputs" == 1 ]] || fail 'invalid update policy'
+[[ -z "${GIT_INDEX_FILE:-}" ]] || fail 'GIT_INDEX_FILE is set; refusing to modify an alternate index'
+((${#input_updates[@]} == 0 || update_inputs == 1)) || fail '--input conflicts with --no-update'
+if [[ "$mode" != switch && "$mode" != update && -n "$manual_message" ]]; then
+  fail '--commit-message is valid only for switch or update'
+fi
+if [[ "$mode" != switch && "$mode" != update && ${#input_updates[@]} -gt 0 ]]; then
+  fail '--input is valid only for switch or update'
+fi
+if [[ "$mode" != switch && "$mode" != update && $dry_run -eq 1 ]]; then
+  fail '--dry-run is valid only for switch or update'
+fi
+((!no_commit)) || [[ -z "$manual_message" ]] || fail '--no-commit conflicts with --commit-message'
+
+need nix
+
+run_health_checks() {
+  ((health_check)) || return 0
+  local hook
+  if [[ "$source_mode" == local ]]; then
+    hook="$repo/nix/hooks/post-rebuild"
+  else
+    hook="$HOME/.config/dotfiles/post-rebuild"
+  fi
+  [[ -f "$hook" ]] || return 0
+  [[ -x "$hook" ]] || fail "health hook is not executable: $hook"
+  log 'Running optional post-activation health check'
+  "$hook" || fail 'activation succeeded, but health checks failed'
+}
+
+if [[ "$mode" == rollback ]]; then
+  if [[ "$os" == darwin ]]; then
+    darwin_rebuild=$(command -v darwin-rebuild || true)
+    [[ -n "$darwin_rebuild" ]] || darwin_rebuild=/run/current-system/sw/bin/darwin-rebuild
+    [[ -x "$darwin_rebuild" ]] || fail 'darwin-rebuild is unavailable'
+    need sudo
+    log 'Rolling back the previous nix-darwin generation'
+    sudo "$darwin_rebuild" switch --rollback || fail 'nix-darwin rollback failed'
+  else
+    need home-manager
+    log 'Rolling back the previous Home Manager generation'
+    home-manager switch --rollback || fail 'Home Manager rollback failed'
+  fi
+  activated=yes
+  source_mode=rollback
+  run_health_checks
+  exit 0
+fi
+
+if [[ "$source_mode" == auto && -z "$repo" && -f "$script_dir/../flake.nix" ]]; then
+  repo=$(cd -P "$script_dir/.." && pwd -P)
+  source_mode=local
+elif [[ "$source_mode" == auto && -n "$repo" ]]; then
+  source_mode=local
+elif [[ "$source_mode" == auto ]]; then
+  source_mode=remote
+fi
+
+if [[ "$source_mode" == local ]]; then
+  [[ -z "$flake_override" ]] || fail '--flake is only supported in remote mode'
+  if [[ -z "$repo" && -f "$script_dir/../flake.nix" ]]; then
+    repo=$(cd -P "$script_dir/.." && pwd -P)
+  fi
+  [[ -n "$repo" ]] && repo=$(cd "$repo" && pwd -P)
+  [[ -n "$repo" && -f "$repo/flake.nix" ]] || fail 'local checkout not found (use --repo PATH or --remote)'
+  need git
+  [[ "$(git -C "$repo" rev-parse --show-toplevel 2>/dev/null)" == "$repo" ]] || fail 'not a Git repository root'
+  cd "$repo"
+  source_ref=$repo
+else
+  source_ref=$flake_override
+  if [[ -z "$source_ref" && -n "$profile" ]]; then
+    if [[ "$profile" == personal ]]; then
+      source_ref=$personal_flake
+      profile_flake_variable=DOTFILES_PERSONAL_FLAKE
+    else
+      source_ref=$work_flake
+      profile_flake_variable=DOTFILES_WORK_FLAKE
+    fi
+  fi
+  if [[ -z "$source_ref" ]]; then
+    if [[ -n "$profile" ]]; then
+      fail "$profile flake unknown: set $profile_flake_variable or pass --flake"
+    else
+      fail 'remote flake unknown: set DOTFILES_FLAKE or pass --flake'
+    fi
+  fi
+fi
+
+[[ "$mode" != update || "$source_mode" == local ]] || fail 'update requires --local/--repo'
+[[ "$source_mode" != remote || -z "$manual_message" ]] || fail 'remote mode cannot commit'
+
+if [[ "$os" == darwin ]]; then
+  config=$profile
+  attr="darwinConfigurations.\"$profile\""
+  target="${source_ref}#${attr}.config.system.build.toplevel"
+else
+  config="${system}-${profile}"
+  attr="homeConfigurations.\"$config\""
+  target="${source_ref}#${attr}.activationPackage"
+fi
+printf 'Source: %s\nMode: %s / %s\nConfiguration: %s\n' \
+  "$source_ref" "$source_mode" "$mode" "$config"
+
+validate_identity() {
+  local user home
+  local -a eval_args=(--raw --no-write-lock-file)
+  [[ "$source_mode" != remote ]] || eval_args+=(--refresh)
+  if [[ "$os" == darwin ]]; then
+    user=$(nix eval "${eval_args[@]}" "${source_ref}#${attr}.config.system.primaryUser") || fail 'profile username eval failed'
+    home=$(nix eval "${eval_args[@]}" "${source_ref}#${attr}.config.users.users.\"${user}\".home") || fail 'profile home eval failed'
+  else
+    user=$(nix eval "${eval_args[@]}" "${source_ref}#${attr}.config.home.username") || fail 'profile username eval failed'
+    home=$(nix eval "${eval_args[@]}" "${source_ref}#${attr}.config.home.homeDirectory") || fail 'profile home eval failed'
+  fi
+  [[ "$user" == "$(id -un)" && "$home" == "$HOME" ]] ||
+    fail "profile identity ($user, $home) does not match current account ($(id -un), $HOME)"
+}
+
+build_configuration() {
+  log "Building $config"
+  local output
+  local -a build_args=(--no-write-lock-file --no-link --print-out-paths)
+  [[ "$source_mode" != remote ]] || build_args+=(--refresh)
+  output=$(nix build "${build_args[@]}" "${nix_args[@]}" "$target") || fail 'build failed'
+  [[ -x "$output/activate" ]] || fail "activation script missing: $output/activate"
+  if [[ "$os" == darwin ]]; then
+    [[ -x "$output/sw/bin/darwin-rebuild" ]] || fail 'built system is missing darwin-rebuild'
+  fi
+  built_output=$output
+}
+
+activate_configuration() {
+  if [[ "$os" == darwin ]]; then
+    local nix_env
+    nix_env=$(command -v nix-env) || fail 'nix-env is required for nix-darwin activation'
+    need sudo
+    log 'Activating nix-darwin system'
+    sudo "$nix_env" -p /nix/var/nix/profiles/system --set "$built_output" || fail 'could not update the system profile'
+    sudo "$built_output/sw/bin/darwin-rebuild" activate || fail 'nix-darwin activation failed'
+  else
+    log 'Activating Home Manager configuration'
+    "$built_output/activate" || fail 'Home Manager activation failed'
+  fi
+  activated=yes
+}
+
+if [[ "$mode" == doctor ]]; then
+  printf 'Nix: %s\n' "$(nix --version)"
+  if [[ "$source_mode" == local ]]; then
+    printf 'Git: %s\n' "$(git --version)"
+    if command -v pi >/dev/null 2>&1; then
+      printf 'Pi: available\n'
+    else
+      printf 'Pi: missing (only required for generated commits)\n'
+    fi
+  fi
+  validate_identity
+  log 'Selected profile output evaluates successfully'
+  exit 0
+fi
+
+if ((dry_run)); then
+  [[ "$source_mode" != local ]] || git status --short --untracked-files=all
+  if [[ "$source_mode" == local ]]; then
+    printf 'Would stage managed paths, scan, format, update inputs, build, and commit.\n'
+  else
+    printf 'Would validate and build the selected remote profile.\n'
+  fi
+  [[ "$mode" != switch ]] || printf 'Would activate the exact built output.\n'
+  exit 0
+fi
+
+if [[ "$source_mode" == remote ]]; then
+  validate_identity
+  build_configuration
+  [[ "$mode" != switch ]] || activate_configuration
+  [[ "$mode" != switch ]] || run_health_checks
+  exit 0
+fi
+
+need git
+if [[ -n "$(git status --porcelain=v1 --untracked-files=all -- .git 2>/dev/null)" ]]; then
+  fail 'unexpected Git metadata state'
+fi
+for state in MERGE_HEAD REBASE_HEAD CHERRY_PICK_HEAD; do
+  [[ ! -f "$(git rev-parse --git-path "$state")" ]] || fail "unfinished Git operation: $state"
+done
+if [[ -d "$(git rev-parse --git-path rebase-merge)" || -d "$(git rev-parse --git-path rebase-apply)" ]]; then
+  fail 'unfinished Git rebase'
+fi
+
+tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/dotfiles-rebuild.XXXXXX") || fail 'mktemp failed'
+git_dir=$(git rev-parse --absolute-git-dir)
+lock_dir="$git_dir/dotfiles-rebuild.lock"
+if ! mkdir "$lock_dir" 2>/dev/null; then
+  if [[ -f "$lock_dir/pid" ]]; then
+    old_pid=$(cat "$lock_dir/pid")
+    if [[ "$old_pid" =~ ^[0-9]+$ ]] && ! kill -0 "$old_pid" 2>/dev/null; then
+      rm -rf -- "$lock_dir"
+      mkdir "$lock_dir" || fail 'another rebuild acquired the lock'
+    else
+      fail "rebuild already running (PID $old_pid)"
+    fi
+  else
+    fail "lock directory already exists: $lock_dir (inspect before removing)"
+  fi
+fi
+printf '%s\n' "$$" >"$lock_dir/pid"
+
+managed_scopes=(
+  .github
+  .pi
+  agents
+  bin
+  config
+  nix
+  nvim
+  openlogi
+  rex
+  themes
+  flake.nix
+  flake.lock
+  README.md
+)
+
+managed_path() {
+  local scope
+  for scope in "${managed_scopes[@]}"; do
+    if [[ "$1" == "$scope" || "$1" == "$scope/"* ]]; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+check_index_safety() {
+  local path common
+  if ((!stage_all)); then
+    while IFS= read -r -d '' path; do
+      managed_path "$path" || fail "staged file is outside managed paths: $path (use --stage-all)"
+    done < <(git diff --cached --name-only -z)
+  fi
+  common=$(comm -12 <(git diff --cached --name-only | LC_ALL=C sort) \
+                     <(git diff --name-only | LC_ALL=C sort))
+  [[ -z "$common" ]] || fail "partially staged files detected: $common"
+}
+
+stage_changes() {
+  if ((stage_all)); then
+    git add -A
+  else
+    local -a scopes=()
+    local path
+    for path in "${managed_scopes[@]}"; do
+      if [[ -e "$path" || -n "$(git ls-files -- "$path")" ]]; then
+        scopes+=("$path")
+      fi
+    done
+    ((${#scopes[@]} == 0)) || git add -A -- "${scopes[@]}"
+  fi
+}
+
+check_sensitive_names() {
+  local path
+  while IFS= read -r -d '' path; do
+    case "${path##*/}" in
+      .env|.env.*|id_rsa|id_ed25519|*.pem|*.p12|*.pfx|*.key|credentials.json|secrets.json)
+        [[ "${path##*/}" == .env.example ]] || fail "sensitive filename staged: $path" ;;
+    esac
+  done < <(git diff --cached --name-only -z)
+}
+
+tool_path() {
+  local name=$1 path=''
+  path=$(nix build --no-link --print-out-paths --inputs-from "$repo" "nixpkgs#$name" 2>/dev/null) || path=''
+  if [[ -n "$path" && -x "$path/bin/$name" ]]; then
+    printf '%s\n' "$path/bin/$name"
+    return 0
+  fi
+  path=$(nix build --no-link --print-out-paths "github:NixOS/nixpkgs/nixos-26.05#$name" 2>/dev/null) || path=''
+  if [[ -n "$path" && -x "$path/bin/$name" ]]; then
+    printf '%s\n' "$path/bin/$name"
+    return 0
+  fi
+  command -v "$name" || return 1
+}
+
+scan_index() {
+  ((scan_secrets)) || return 0
+  local gitleaks config
+  config="$repo/.gitleaks.toml"
+  [[ -r "$config" ]] || fail "Gitleaks configuration is unavailable: $config"
+  gitleaks=$(tool_path gitleaks) || fail 'Gitleaks unavailable (or pass --no-secret-scan)'
+  "$gitleaks" git --staged --config "$config" --redact --exit-code 1 . \
+    || fail 'secrets detected or Gitleaks failed'
+}
+
+review_index() {
+  local purpose=$1
+  log "$purpose"
+  git status --short --untracked-files=all
+  if ! git diff --cached --quiet; then
+    git --no-pager diff --cached --no-ext-diff
+    confirm "Approve the above staged changes for $purpose?" || fail 'review declined'
+  fi
+}
+
+format_nix() {
+  local nixfmt file
+  nixfmt=$(tool_path nixfmt) || fail 'nixfmt unavailable'
+  log 'Formatting Nix files'
+  while IFS= read -r -d '' file; do
+    [[ -f "$file" && ! -L "$file" ]] || continue
+    "$nixfmt" "$file" || fail "could not format $file"
+  done < <(git ls-files -z -c -o --exclude-standard -- '*.nix')
+}
+
+update_lock() {
+  ((update_inputs)) || return 0
+  local saved="$tmp_dir/flake.lock.before" had_lock=0
+  if [[ -f flake.lock ]]; then
+    cp flake.lock "$saved"
+    had_lock=1
+  fi
+  log 'Updating flake inputs'
+  if ((${#input_updates[@]})); then
+    update_command=(nix flake update "${input_updates[@]}")
+  else
+    update_command=(nix flake update)
+  fi
+  if "${update_command[@]}"; then
+    return 0
+  fi
+  if ((had_lock)); then cp "$saved" flake.lock; else rm -f flake.lock; fi
+  stage_changes
+  if ((offline_fallback)) || confirm 'Input update failed. Continue with the previous lockfile?'; then
+    log 'Using previous flake.lock'
+  else
+    fail 'flake update failed'
+  fi
+}
+
+commit_index() {
+  git diff --cached --quiet && return 0
+  local subject=$manual_message pi_output diff_file
+  if [[ -z "$subject" ]] && command -v pi >/dev/null 2>&1; then
+    confirm 'Send the approved staged patch to Pi for a commit subject?' || fail 'Pi review declined'
+    diff_file="$tmp_dir/commit.diff"
+    git diff --cached --no-ext-diff -- . ':(exclude)flake.lock' >"$diff_file"
+    if pi_output=$(head -c 60000 "$diff_file" | pi --print --no-session --no-tools \
+        --no-extensions --no-skills --no-context-files \
+        'Generate exactly one concise conventional commit subject (type(scope): description). No markdown or explanation.'); then
+      subject=$(printf '%s\n' "$pi_output" | sed -n '1p')
+    fi
+  fi
+  if [[ -z "$subject" ]]; then
+    if ((fallback_message)) || confirm 'Pi unavailable. Use "chore(dotfiles): update configuration"?'; then
+      subject='chore(dotfiles): update configuration'
+    else
+      fail 'no commit message available'
+    fi
+  fi
+  local pattern='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-z0-9.-]+\))?!?: .+'
+  [[ "$subject" =~ $pattern ]] || fail "not a conventional commit subject: $subject"
+  git commit -m "$subject" || fail 'Git commit failed'
+  committed=yes
+}
+
+check_index_safety
+log 'Reviewing sources before Nix reads them'
+stage_changes
+check_sensitive_names
+review_index 'Initial review'
+scan_index
+format_nix
+stage_changes
+update_lock
+stage_changes
+check_sensitive_names
+scan_index
+validate_identity
+build_configuration
+git diff --cached --check || fail 'staged whitespace errors'
+review_index 'Final pre-commit review'
+if ((!no_commit)); then
+  commit_index
+fi
+if [[ "$mode" == update ]]; then
+  exit 0
+fi
+activate_configuration || fail 'activation failed (commit, if created, was preserved)'
+run_health_checks

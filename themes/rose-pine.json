@@ -1,0 +1,162 @@
+{
+  "schemaVersion": 3,
+  "upstream": {
+    "repository": "https://github.com/rose-pine/rose-pine-theme",
+    "terminalRepository": "https://github.com/rose-pine/ghostty"
+  },
+  "variants": {
+    "rose-pine": {
+      "appearance": "dark",
+      "colors": {
+        "base": "#191724",
+        "surface": "#1f1d2e",
+        "overlay": "#26233a",
+        "muted": "#6e6a86",
+        "subtle": "#908caa",
+        "text": "#e0def4",
+        "love": "#eb6f92",
+        "gold": "#f6c177",
+        "rose": "#ebbcba",
+        "pine": "#31748f",
+        "foam": "#9ccfd8",
+        "iris": "#c4a7e7",
+        "highlightLow": "#21202e",
+        "highlightMed": "#403d52",
+        "highlightHigh": "#524f67"
+      },
+      "terminal": {
+        "ansi": [
+          "#26233a",
+          "#eb6f92",
+          "#31748f",
+          "#f6c177",
+          "#9ccfd8",
+          "#c4a7e7",
+          "#ebbcba",
+          "#e0def4",
+          "#908caa",
+          "#eb6f92",
+          "#31748f",
+          "#f6c177",
+          "#9ccfd8",
+          "#c4a7e7",
+          "#ebbcba",
+          "#e0def4"
+        ],
+        "background": "#191724",
+        "foreground": "#e0def4",
+        "cursor": "#e0def4",
+        "cursorText": "#191724",
+        "selectionBackground": "#403d52",
+        "selectionForeground": "#e0def4"
+      }
+    },
+    "rose-pine-moon": {
+      "appearance": "dark",
+      "colors": {
+        "base": "#232136",
+        "surface": "#2a273f",
+        "overlay": "#393552",
+        "muted": "#6e6a86",
+        "subtle": "#908caa",
+        "text": "#e0def4",
+        "love": "#eb6f92",
+        "gold": "#f6c177",
+        "rose": "#ea9a97",
+        "pine": "#3e8fb0",
+        "foam": "#9ccfd8",
+        "iris": "#c4a7e7",
+        "highlightLow": "#2a283e",
+        "highlightMed": "#44415a",
+        "highlightHigh": "#56526e"
+      },
+      "terminal": {
+        "ansi": [
+          "#393552",
+          "#eb6f92",
+          "#3e8fb0",
+          "#f6c177",
+          "#9ccfd8",
+          "#c4a7e7",
+          "#ea9a97",
+          "#e0def4",
+          "#908caa",
+          "#eb6f92",
+          "#3e8fb0",
+          "#f6c177",
+          "#9ccfd8",
+          "#c4a7e7",
+          "#ea9a97",
+          "#e0def4"
+        ],
+        "background": "#232136",
+        "foreground": "#e0def4",
+        "cursor": "#e0def4",
+        "cursorText": "#232136",
+        "selectionBackground": "#44415a",
+        "selectionForeground": "#e0def4"
+      }
+    },
+    "rose-pine-dawn": {
+      "appearance": "light",
+      "colors": {
+        "base": "#faf4ed",
+        "surface": "#fffaf3",
+        "overlay": "#f2e9e1",
+        "muted": "#9893a5",
+        "subtle": "#797593",
+        "text": "#575279",
+        "love": "#b4637a",
+        "gold": "#ea9d34",
+        "rose": "#d7827e",
+        "pine": "#286983",
+        "foam": "#56949f",
+        "iris": "#907aa9",
+        "highlightLow": "#f4ede8",
+        "highlightMed": "#dfdad9",
+        "highlightHigh": "#cecacd"
+      },
+      "terminal": {
+        "ansi": [
+          "#f2e9e1",
+          "#965166",
+          "#286983",
+          "#99651f",
+          "#467783",
+          "#745f91",
+          "#9a5553",
+          "#575279",
+          "#6f6b87",
+          "#965166",
+          "#286983",
+          "#99651f",
+          "#467783",
+          "#745f91",
+          "#9a5553",
+          "#575279"
+        ],
+        "background": "#faf4ed",
+        "foreground": "#575279",
+        "cursor": "#575279",
+        "cursorText": "#faf4ed",
+        "selectionBackground": "#dfdad9",
+        "selectionForeground": "#575279"
+      }
+    }
+  },
+  "derived": {
+    "rose-pine": {
+      "annotation": "#a4a0bc",
+      "pendingBg": "#2a283e",
+      "successBg": "#233a3f",
+      "errorBg": "#3a2530",
+      "customBg": "#2a273f",
+      "infoBg": "#3a3326",
+      "diffRemoveStrong": "#4b3146",
+      "diffRemoveSubtle": "#312436",
+      "diffAddStrong": "#28384d",
+      "diffAddSubtle": "#1f2638"
+    }
+  },
+  "canonicalColorSpace": "srgb"
+}

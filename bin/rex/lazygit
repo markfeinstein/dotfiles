@@ -1,0 +1,80 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+  echo "usage: rex-lazygit WORKING_DIRECTORY" >&2
+  exit 64
+fi
+
+working_directory=$1
+if [[ ! -d $working_directory ]]; then
+  echo "rex-lazygit: working directory does not exist: $working_directory" >&2
+  exit 1
+fi
+
+if [[ -n ${GIT_BIN_PATH:-} ]]; then
+  git_bin=$GIT_BIN_PATH
+else
+  git_bin=git
+fi
+
+if [[ -n ${LAZYGIT_BIN_PATH:-} ]]; then
+  lazygit_bin=$LAZYGIT_BIN_PATH
+else
+  lazygit_bin=lazygit
+fi
+
+is_bare="$("$git_bin" -C "$working_directory" rev-parse --is-bare-repository 2>/dev/null || true)"
+if [[ $is_bare != true ]]; then
+  cd "$working_directory"
+  exec "$lazygit_bin"
+fi
+
+record_path=
+record_branch=
+record_bare=false
+record_prunable=false
+main_branch_worktree=
+named_main_worktree=
+fallback_worktree=
+
+finish_worktree_record() {
+  if [[ -n $record_path && $record_bare != true && $record_prunable != true && -d $record_path ]]; then
+    if [[ -z $fallback_worktree ]]; then
+      fallback_worktree=$record_path
+    fi
+    if [[ $record_branch == refs/heads/main && -z $main_branch_worktree ]]; then
+      main_branch_worktree=$record_path
+    elif [[ ${record_path##*/} == main && -z $named_main_worktree ]]; then
+      named_main_worktree=$record_path
+    fi
+  fi
+
+  record_path=
+  record_branch=
+  record_bare=false
+  record_prunable=false
+}
+
+while IFS= read -r -d '' field; do
+  case "$field" in
+  worktree\ *)
+    finish_worktree_record
+    record_path=${field#worktree }
+    ;;
+  "") finish_worktree_record ;;
+  bare) record_bare=true ;;
+  prunable*) record_prunable=true ;;
+  branch\ *) record_branch=${field#branch } ;;
+  esac
+done < <("$git_bin" -C "$working_directory" worktree list --porcelain -z)
+finish_worktree_record
+
+worktree=${main_branch_worktree:-${named_main_worktree:-$fallback_worktree}}
+if [[ -z $worktree ]]; then
+  echo "rex-lazygit: bare repository has no usable linked worktree: $working_directory" >&2
+  exit 1
+fi
+
+cd "$worktree"
+exec "$lazygit_bin"

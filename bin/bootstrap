@@ -1,0 +1,202 @@
+#!/bin/sh
+set -eu
+
+profile=
+profile_from_flag=0
+flake=${DOTFILES_FLAKE:-}
+personal_flake=${DOTFILES_PERSONAL_FLAKE:-}
+work_flake=${DOTFILES_WORK_FLAKE:-}
+profile_file=${DOTFILES_PROFILE_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles/profile}
+auth_github=0
+tmp_dir=
+profile_tmp=
+determinate_installer_version=3.24.2
+determinate_installer_aarch64_linux_sha256=bc18d8d8ca12f95d219b5978201e15d0049b2e9d8b7c49593f26503c87172145
+determinate_installer_x86_64_linux_sha256=22ed14ee1b24d100d388f1fc245e3062bd5982433d159cffa6dec34c0eb15dab
+
+usage() {
+  cat <<'HELP'
+Usage: bootstrap [--profile personal|work] [--flake REF] [--auth-github]
+
+Configure a new machine without Git, Homebrew, or a local checkout.
+Installs Determinate Nix when Nix is absent, then activates the selected profile.
+
+Selection precedence:
+  --profile, DOTFILES_PROFILE, persisted profile, interactive prompt
+
+Remote source precedence:
+  --flake or DOTFILES_FLAKE, then the selected profile's default flake
+
+Environment:
+  DOTFILES_PROFILE          temporary profile override
+  DOTFILES_PROFILE_FILE     persisted profile path
+  DOTFILES_FLAKE            one-run flake override
+  DOTFILES_PERSONAL_FLAKE   default personal flake
+  DOTFILES_WORK_FLAKE       default work flake
+
+macOS flakes must export darwinConfigurations.<profile>.
+Linux flakes must export homeConfigurations.<system>-<profile>.
+HELP
+}
+
+fail() { printf 'bootstrap: %s\n' "$*" >&2; exit 1; }
+log() { printf '\n==> %s\n' "$*"; }
+
+script=$0
+case $script in
+  */*) ;;
+  *) script=$(command -v "$script") || fail 'could not resolve bootstrap path' ;;
+esac
+script_dir=$(CDPATH='' cd -P "$(dirname "$script")" && pwd -P)
+# shellcheck source=bin/lib/profile.sh
+. "$script_dir/lib/profile.sh"
+
+cleanup() {
+  [ -z "$tmp_dir" ] || rm -rf "$tmp_dir"
+  [ -z "$profile_tmp" ] || rm -f "$profile_tmp"
+}
+trap cleanup 0
+
+while [ "$#" -gt 0 ]; do
+  case $1 in
+    --profile) [ "$#" -ge 2 ] || fail '--profile requires a value'; profile=$2; profile_from_flag=1; shift 2 ;;
+    --profile=*) profile=${1#*=}; profile_from_flag=1; shift ;;
+    --flake) [ "$#" -ge 2 ] || fail '--flake requires a value'; flake=$2; shift 2 ;;
+    --flake=*) flake=${1#*=}; shift ;;
+    --auth-github) auth_github=1; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) fail "unknown option: $1" ;;
+  esac
+done
+
+select_dotfiles_profile
+
+if [ -z "$flake" ]; then
+  if [ "$profile" = personal ]; then
+    flake=$personal_flake
+    profile_flake_variable=DOTFILES_PERSONAL_FLAKE
+  else
+    flake=$work_flake
+    profile_flake_variable=DOTFILES_WORK_FLAKE
+  fi
+fi
+[ -n "$flake" ] || fail "$profile flake not set: pass --flake REF or set $profile_flake_variable"
+[ "$(id -u)" -ne 0 ] || fail 'run as your normal account, not root'
+
+resolve_dotfiles_system
+
+load_nix() {
+  command -v nix >/dev/null 2>&1 && return 0
+  for setup in /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh \
+               "$HOME/.nix-profile/etc/profile.d/nix.sh"; do
+    # shellcheck disable=SC1090
+    if [ -r "$setup" ]; then . "$setup"; break; fi
+  done
+  PATH="/nix/var/nix/profiles/default/bin:$HOME/.nix-profile/bin:$PATH"
+  export PATH
+}
+
+sha256_file() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  elif command -v openssl >/dev/null 2>&1; then
+    openssl dgst -sha256 "$1" | sed 's/^.*= //'
+  else
+    fail 'sha256sum, shasum, or openssl is required to verify the Nix installer'
+  fi
+}
+
+install_nix() {
+  command -v curl >/dev/null 2>&1 || fail 'curl is required to install Determinate Nix'
+  tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/dotfiles-bootstrap.XXXXXX") || fail 'mktemp failed'
+  if [ "$os" = darwin ]; then
+    log 'Downloading the signed Determinate macOS package'
+    pkg="$tmp_dir/Determinate.pkg"
+    curl --proto '=https' --tlsv1.2 -fsSL \
+      'https://install.determinate.systems/determinate-pkg/stable/Universal' \
+      -o "$pkg" || fail 'Determinate package download failed'
+    assessment=$(spctl -a -vv -t install "$pkg" 2>&1) || fail "package signature rejected: $assessment"
+    team=$(printf '%s\n' "$assessment" | sed -n 's/^origin=.*(\([A-Za-z0-9]*\)).*/\1/p')
+    [ "$team" = 'X3JQ4VPJZ6' ] || fail "unexpected signing team: ${team:-unknown}"
+    log 'Installing Determinate Nix (administrator approval required)'
+    sudo /usr/sbin/installer -pkg "$pkg" -target / || fail 'macOS package installation failed'
+  else
+    case $(uname -m) in
+      aarch64|arm64)
+        installer_target=aarch64-linux
+        expected_sha256=$determinate_installer_aarch64_linux_sha256
+        ;;
+      x86_64|amd64)
+        installer_target=x86_64-linux
+        expected_sha256=$determinate_installer_x86_64_linux_sha256
+        ;;
+      *) fail "unsupported Linux architecture: $(uname -m)" ;;
+    esac
+
+    installer="$tmp_dir/nix-installer"
+    installer_url="https://github.com/DeterminateSystems/nix-installer/releases/download/v${determinate_installer_version}/nix-installer-${installer_target}"
+    log "Downloading Determinate Nix installer v${determinate_installer_version} for ${installer_target}"
+    curl --proto '=https' --tlsv1.2 -fsSL "$installer_url" -o "$installer" || fail 'installer download failed'
+    actual_sha256=$(sha256_file "$installer")
+    [ "$actual_sha256" = "$expected_sha256" ] || fail 'Determinate Nix installer checksum mismatch'
+    chmod 0700 "$installer" || fail 'could not make Nix installer executable'
+    "$installer" install || fail 'Determinate Nix installation failed'
+  fi
+}
+
+load_nix
+if ! command -v nix >/dev/null 2>&1; then
+  install_nix
+  load_nix
+fi
+command -v nix >/dev/null 2>&1 || fail 'Nix is not on PATH; open a new shell and rerun bootstrap'
+
+if [ "$auth_github" -eq 1 ]; then
+  [ -r /dev/tty ] || fail '--auth-github requires a terminal'
+  printf 'GitHub token (hidden): ' >/dev/tty
+  saved_stty=$(stty -g </dev/tty) || fail 'could not read terminal settings'
+  stty -echo </dev/tty
+  IFS= read -r token </dev/tty || { stty "$saved_stty" </dev/tty; fail 'token input failed'; }
+  stty "$saved_stty" </dev/tty
+  printf '\n' >/dev/tty
+  [ -n "$token" ] || fail 'empty GitHub token'
+  NIX_CONFIG="${NIX_CONFIG:+${NIX_CONFIG}
+}access-tokens = github.com=$token"
+  export NIX_CONFIG
+  unset token
+fi
+
+if [ "$os" = darwin ]; then
+  attr="darwinConfigurations.\"${profile}\""
+  target="${flake}#${attr}.config.system.build.toplevel"
+  expected_user=$(nix eval --refresh --raw "${flake}#${attr}.config.system.primaryUser") || fail 'could not evaluate profile account'
+  expected_home=$(nix eval --refresh --raw "${flake}#${attr}.config.users.users.\"${expected_user}\".home") || fail 'could not evaluate profile home directory'
+else
+  config="${system}-${profile}"
+  attr="homeConfigurations.\"${config}\""
+  target="${flake}#${attr}.activationPackage"
+  expected_user=$(nix eval --refresh --raw "${flake}#${attr}.config.home.username") || fail 'could not evaluate profile account'
+  expected_home=$(nix eval --refresh --raw "${flake}#${attr}.config.home.homeDirectory") || fail 'could not evaluate profile home directory'
+fi
+[ "$expected_user" = "$(id -un)" ] || fail "profile account '$expected_user' differs from current account '$(id -un)'"
+[ "$expected_home" = "$HOME" ] || fail "profile home '$expected_home' differs from HOME '$HOME'"
+
+log "Building $target"
+output=$(nix build --refresh --no-link --print-out-paths "$target") || fail 'configuration build failed'
+[ -x "$output/activate" ] || fail "missing activation script: $output/activate"
+
+if [ "$os" = darwin ]; then
+  command -v nix-env >/dev/null 2>&1 || fail 'nix-env is required for nix-darwin activation'
+  [ -x "$output/sw/bin/darwin-rebuild" ] || fail 'built system is missing darwin-rebuild'
+  log 'Activating nix-darwin system (administrator approval required)'
+  sudo "$(command -v nix-env)" -p /nix/var/nix/profiles/system --set "$output" || fail 'could not update the system profile'
+  sudo "$output/sw/bin/darwin-rebuild" activate || fail 'nix-darwin activation failed'
+else
+  log 'Activating Home Manager'
+  "$output/activate" || fail 'Home Manager activation failed (inspect unmanaged file conflicts)'
+fi
+
+printf '\nBootstrap complete: %s / %s\n' "$profile" "$system"
+printf 'Open a new terminal to use the installed environment.\n'

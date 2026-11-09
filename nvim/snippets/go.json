@@ -1,0 +1,32 @@
+{
+  "Table Driven Test": {
+    "prefix": "tdt",
+    "body": [
+      "func Test${1:Method}(t *testing.T) {",
+      "\ttestCases := map[string]struct{",
+      "\t\terror error",
+      "\t}{",
+      "\t\t\"happy path\": {",
+      "\t\t\terror: nil,",
+      "\t\t},",
+      "\t}",
+      "",
+      "\tfor name, tc := range testCases {",
+      "\t\tt.Run(name, func(t *testing.T) {",
+      "\t\t\t_ = tc",
+      "\t\t})",
+      "\t}",
+      "}"
+    ],
+    "description": "Table driven test"
+  },
+  "Error handle": {
+    "prefix": "ife",
+    "body": [
+      "if err != nil {",
+      "\treturn ${1}fmt.Errorf(\"${2}: %w\", err)",
+      "}"
+    ],
+    "description": "Handle error return"
+  }
+}

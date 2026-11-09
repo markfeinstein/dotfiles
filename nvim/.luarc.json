@@ -1,0 +1,12 @@
+{
+  "workspace": {
+    "checkThirdParty": false,
+    "ignoreDir": [
+      ".direnv",
+      ".git",
+      ".jj",
+      "node_modules",
+      "result"
+    ]
+  }
+}

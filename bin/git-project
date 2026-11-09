@@ -1,0 +1,564 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+git_bin="${GIT_BIN_PATH:-git}"
+worktrunk_bin="${WORKTRUNK_BIN_PATH:-wt}"
+
+usage() {
+  cat >&2 <<'EOF'
+Usage:
+  git-project clone [--branch BRANCH] [--worktree NAME] [--dev-root DIR] [--allow-new-branch] [--path-only] <remote> [repo]
+  git-project init --project NAME [--worktree NAME] [--dev-root DIR] [--path-only]
+  git-project adopt --source PATH --project NAME [--worktree NAME] [--dev-root DIR] [--path-only]
+  git-project worktree --branch BRANCH [--base REF] [--cwd DIR | --git-dir DIR] [--destination DIR | --root DIR] [--orphan-fallback]
+  git-project inspect [--dev-root DIR] PATH
+  git-project list [--dev-root DIR]
+
+Worktree creation delegates to Worktrunk. Use `wt switch` and `wt list` for
+navigation, `wt step diff` and `wt step push` for review and local integration,
+and `wt remove` for explicit cleanup.
+Inspection output is tab-separated: kind, root, project, space, common-git-dir.
+EOF
+  exit 2
+}
+
+die() {
+  printf 'git-project: %s\n' "$*" >&2
+  exit 1
+}
+
+valid_name() {
+  case "$1" in
+    "" | "." | ".." | [!A-Za-z0-9]* | *[!A-Za-z0-9._-]*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+require_name() {
+  valid_name "$2" || die "invalid $1 name: $2"
+}
+
+validate_branch() {
+  local branch="$1"
+  case "$branch" in "" | -*) die "invalid branch name: $branch" ;; esac
+  "$git_bin" check-ref-format --branch "$branch" >/dev/null 2>&1 || die "invalid branch name: $branch"
+}
+
+validate_root_path() {
+  case "$1" in "") die "dev root must not be empty" ;; /*) ;; *) die "dev root must be absolute: $1" ;; esac
+  case "$1/" in *'/../'* | *'/./'*) die "dev root may not contain . or .. components: $1" ;; esac
+}
+
+path_exists_or_symlink() {
+  [ -e "$1" ] || [ -L "$1" ]
+}
+
+derive_repo_name() {
+  local trimmed="$1" base
+  while [ "${trimmed%/}" != "$trimmed" ]; do
+    trimmed="${trimmed%/}"
+  done
+  base="${trimmed##*/}"
+  base="${base##*:}"
+  printf '%s\n' "${base%.git}"
+}
+
+expand_home() {
+  case "$1" in
+    \~) printf '%s\n' "$HOME" ;;
+    \~/*) printf '%s/%s\n' "$HOME" "${1#\~/}" ;;
+    *) printf '%s\n' "$1" ;;
+  esac
+}
+
+canonical_target() {
+  local path="$1" parent
+  parent="$(dirname -- "$path")"
+  mkdir -p -- "$parent"
+  printf '%s/%s\n' "$(realpath "$parent")" "$(basename -- "$path")"
+}
+
+resolve_dev_root() {
+  validate_root_path "$1"
+  mkdir -p -- "$1"
+  realpath "$1"
+}
+
+resolve_read_dev_root() {
+  local root="$1"
+  validate_root_path "$root"
+  [ "$root" = / ] || root="${root%/}"
+  if [ -d "$root" ]; then
+    realpath "$root"
+  else
+    printf '%s\n' "$root"
+  fi
+}
+
+path_is_under() {
+  [ "$2" != / ] || { case "$1" in /*) return 0 ;; *) return 1 ;; esac; }
+  case "$1/" in "$2/"*) return 0 ;; *) return 1 ;; esac
+}
+
+safe_record_field() {
+  case "$1" in *$'\t'* | *$'\n'*) return 1 ;; *) return 0 ;; esac
+}
+
+emit_inspection() {
+  local kind="$1" root="$2" project="$3" space="$4" common="$5" field
+  for field in "$kind" "$root" "$project" "$space" "$common"; do
+    safe_record_field "$field" || die "inspection fields may not contain tabs or newlines"
+  done
+  printf '%s\t%s\t%s\t%s\t%s\n' "$kind" "$root" "$project" "$space" "$common"
+}
+
+is_managed_bare_project() {
+  local project_root="$1" dev_root="$2" relative bare
+  path_is_under "$project_root" "$dev_root" || return 1
+  relative="${project_root#"$dev_root"/}"
+  [ "$relative" != "$project_root" ] && [ -n "$relative" ] && [ "${relative#*/}" = "$relative" ] || return 1
+  [ -d "$project_root/.git" ] || return 1
+  bare="$($git_bin --git-dir "$project_root/.git" rev-parse --is-bare-repository 2>/dev/null || true)"
+  [ "$bare" = true ]
+}
+
+inspect_path_record() {
+  local path="$1" dev_root="$2" root common project_root project branch remote kind space
+  [ -d "$path" ] || return 1
+  path="$(realpath "$path")"
+
+  if is_managed_bare_project "$path" "$dev_root"; then
+    emit_inspection repo-root "$path" "${path##*/}" "repo root" "$path/.git"
+    return 0
+  fi
+
+  root="$($git_bin -C "$path" rev-parse --show-toplevel 2>/dev/null || true)"
+  [ -n "$root" ] || return 1
+  root="$(realpath "$root")"
+  common="$($git_bin -C "$root" rev-parse --git-common-dir 2>/dev/null || true)"
+  [ -n "$common" ] || return 1
+  case "$common" in /*) ;; *) common="$root/$common" ;; esac
+  common="$(realpath "$common")"
+  branch="$($git_bin -C "$root" branch --show-current 2>/dev/null | head -n 1 || true)"
+  space="${branch:-${root##*/}}"
+
+  project_root="${common%/.git}"
+  if [ "$project_root" != "$common" ] && [ "$root" != "$project_root" ] && is_managed_bare_project "$project_root" "$dev_root"; then
+    emit_inspection worktree "$root" "${project_root##*/}" "$space" "$common"
+    return 0
+  fi
+
+  remote="$($git_bin -C "$root" remote get-url origin 2>/dev/null || true)"
+  if [ -n "$remote" ]; then
+    project="$(derive_repo_name "$remote")"
+  else
+    project="${root##*/}"
+  fi
+  [ -n "$project" ] || project="${root##*/}"
+  kind=repository
+  emit_inspection "$kind" "$root" "$project" "$space" "$common"
+}
+
+inspect_project() {
+  local dev_root="${GIT_PROJECTS_ROOT:-${HOME:-}/dev}" path=""
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --dev-root) [ "$#" -ge 2 ] || usage; dev_root="$2"; shift 2 ;;
+      --) shift; [ "$#" -eq 1 ] || usage; path="$1"; shift ;;
+      --*) die "unknown inspect option: $1" ;;
+      *) [ -z "$path" ] || usage; path="$1"; shift ;;
+    esac
+  done
+  [ -n "$path" ] || usage
+  dev_root="$(resolve_read_dev_root "$dev_root")"
+  inspect_path_record "$path" "$dev_root"
+}
+
+list_projects() {
+  local dev_root="${GIT_PROJECTS_ROOT:-${HOME:-}/dev}" project_root gitdir line worktree bare
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --dev-root) [ "$#" -ge 2 ] || usage; dev_root="$2"; shift 2 ;;
+      *) usage ;;
+    esac
+  done
+  dev_root="$(resolve_read_dev_root "$dev_root")"
+  [ -d "$dev_root" ] || return 0
+  for project_root in "$dev_root"/*; do
+    [ -d "$project_root" ] || continue
+    is_managed_bare_project "$project_root" "$dev_root" || continue
+    emit_inspection repo-root "$(realpath "$project_root")" "${project_root##*/}" "repo root" "$(realpath "$project_root/.git")"
+    gitdir="$project_root/.git"
+    worktree=""
+    bare=0
+    while IFS= read -r line || [ -n "$line" ]; do
+      if [ -z "$line" ]; then
+        if [ -n "$worktree" ] && [ "$bare" -eq 0 ] && [ -d "$worktree" ]; then
+          inspect_path_record "$worktree" "$dev_root" || true
+        fi
+        worktree=""
+        bare=0
+        continue
+      fi
+      case "$line" in
+        worktree\ *) worktree="${line#worktree }" ;;
+        bare) bare=1 ;;
+      esac
+    done < <("$git_bin" --git-dir "$gitdir" worktree list --porcelain 2>/dev/null || true; printf '\n')
+  done
+}
+
+branch_exists() {
+  "$git_bin" --git-dir "$1" show-ref --verify --quiet "refs/heads/$2"
+}
+
+branch_available() {
+  local gitdir="$1" branch="$2" ref
+  branch_exists "$gitdir" "$branch" && return 0
+  while IFS= read -r ref; do
+    case "$ref" in
+      refs/remotes/*/"$branch") return 0 ;;
+    esac
+  done < <("$git_bin" --git-dir "$gitdir" for-each-ref --format='%(refname)' refs/remotes)
+  return 1
+}
+
+worktrunk_context() {
+  local gitdir="$1" first_worktree
+  gitdir="$(realpath "$gitdir")"
+  first_worktree="$("$git_bin" --git-dir "$gitdir" worktree list --porcelain | sed -n '1s/^worktree //p')"
+  [ -n "$first_worktree" ] || die "could not find a worktree context for $gitdir"
+  first_worktree="$(realpath "$first_worktree")"
+
+  # In the managed bare-repo layout, Git reports the bare metadata directory
+  # itself as the first worktree. Worktrunk expects the containing project root.
+  if [ "$(basename "$gitdir")" = .git ] && [ "$first_worktree" = "$gitdir" ]; then
+    dirname "$gitdir"
+  else
+    printf '%s\n' "$first_worktree"
+  fi
+}
+
+registered_worktree() {
+  local gitdir="$1" wanted="$2" line path="" branch=""
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [ -z "$line" ]; then
+      if [ "$branch" = "$wanted" ] && [ -n "$path" ]; then
+        printf '%s\n' "$path"
+        return 0
+      fi
+      path=""
+      branch=""
+      continue
+    fi
+    case "$line" in
+      worktree\ *) path="${line#worktree }" ;;
+      branch\ refs/heads/*) branch="${line#branch refs/heads/}" ;;
+    esac
+  done < <("$git_bin" --git-dir "$gitdir" worktree list --porcelain; printf '\n')
+  return 1
+}
+
+create_worktree() {
+  local gitdir="$1" branch="$2" destination="$3" allow_new="$4" orphan_fallback="$5" base="${6:-}"
+  local existing context result status=0 worktree_path worktree_config
+  local -a switch_args worktrunk_args
+  validate_branch "$branch"
+  destination="$(canonical_target "$destination")"
+  existing="$(registered_worktree "$gitdir" "$branch" || true)"
+  if [ -n "$existing" ]; then
+    [ -d "$existing" ] || die "worktree branch is registered at a missing path: $branch -> $existing"
+    existing="$(realpath "$existing")"
+    [ "$existing" = "$destination" ] || die "worktree branch is registered outside the requested path: $branch -> $existing"
+    printf '%s\n' "$existing"
+    return 0
+  fi
+  path_exists_or_symlink "$destination" && die "worktree path already exists: $destination"
+  command -v "$worktrunk_bin" >/dev/null 2>&1 || die "Worktrunk was not found; install the managed package"
+
+  if branch_available "$gitdir" "$branch"; then
+    [ -z "$base" ] || die "--base may be used only when creating a new branch"
+    switch_args=("$branch")
+  else
+    [ "$allow_new" -eq 1 ] || die "branch not found: $branch"
+    if ! "$git_bin" --git-dir "$gitdir" rev-parse --verify HEAD >/dev/null 2>&1 && [ "$orphan_fallback" -ne 1 ]; then
+      die "repository has no commits; pass --orphan-fallback to create an initial branch"
+    fi
+    switch_args=(--create "$branch")
+    if [ -n "$base" ]; then
+      "$git_bin" --git-dir "$gitdir" rev-parse --verify "$base^{commit}" >/dev/null 2>&1 || die "base ref not found: $base"
+      switch_args+=(--base "$base")
+    fi
+  fi
+
+  context="$(worktrunk_context "$gitdir")"
+  worktree_config="worktree-path = $(jq -cn --arg path "$destination" '$path')"
+  worktrunk_args=(
+    --config-set "skip-shell-integration-prompt = true"
+    --config-set "$worktree_config"
+    -C "$context"
+    switch
+    --no-cd
+    --format=json
+    "${switch_args[@]}"
+  )
+  result="$("$worktrunk_bin" "${worktrunk_args[@]}")" || status=$?
+  if [ "$status" -ne 0 ]; then
+    worktree_path="$(printf '%s\n' "$result" | jq -er '.path' 2>/dev/null || true)"
+    if [ -n "$worktree_path" ] && [ -d "$worktree_path" ]; then
+      printf 'git-project: Worktrunk left a worktree at %s before failing\n' "$worktree_path" >&2
+    fi
+    return "$status"
+  fi
+
+  worktree_path="$(printf '%s\n' "$result" | jq -er '.path')" || die "Worktrunk did not return the created worktree path"
+  [ -d "$worktree_path" ] || die "Worktrunk reported a missing worktree: $worktree_path"
+  worktree_path="$(realpath "$worktree_path")"
+  [ "$worktree_path" = "$destination" ] || die "Worktrunk created $worktree_path; expected $destination"
+  printf '%s\n' "$worktree_path"
+}
+
+configure_branch_tracking() {
+  local gitdir="$1" branch="$2"
+  if "$git_bin" --git-dir "$gitdir" show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+    "$git_bin" --git-dir "$gitdir" config "branch.$branch.remote" origin
+    "$git_bin" --git-dir "$gitdir" config "branch.$branch.merge" "refs/heads/$branch"
+  fi
+}
+
+configure_bare_origin_tracking() {
+  local gitdir="$1" ref branch oid
+  "$git_bin" --git-dir "$gitdir" config --replace-all remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
+  while IFS= read -r ref; do
+    [ -n "$ref" ] || continue
+    branch="${ref#refs/heads/}"
+    oid="$("$git_bin" --git-dir "$gitdir" rev-parse "$ref^{commit}")"
+    "$git_bin" --git-dir "$gitdir" update-ref "refs/remotes/origin/$branch" "$oid"
+    configure_branch_tracking "$gitdir" "$branch"
+  done < <("$git_bin" --git-dir "$gitdir" for-each-ref --format='%(refname)' refs/heads)
+}
+
+url_is_relative_local() {
+  case "$1" in "" | /* | ~* | *://* | *:*) return 1 ;; *) return 0 ;; esac
+}
+
+resolve_source_url() {
+  local source_root="$1" url="$2" url_dir url_base
+  if url_is_relative_local "$url"; then
+    url_dir="$(dirname -- "$url")"
+    url_base="$(basename -- "$url")"
+    (cd "$source_root/$url_dir" 2>/dev/null && printf '%s/%s\n' "$(pwd -P)" "$url_base") || printf '%s\n' "$url"
+  else
+    printf '%s\n' "$url"
+  fi
+}
+
+configure_adopted_origin() {
+  local source="$1" gitdir="$2" source_root url pushurl ref oid saw_url=0
+  source_root="$("$git_bin" -C "$source" rev-parse --show-toplevel 2>/dev/null || true)"
+  [ -n "$source_root" ] || source_root="$source"
+  while IFS= read -r url; do
+    [ -n "$url" ] || continue
+    if [ "$saw_url" -eq 0 ]; then
+      "$git_bin" --git-dir "$gitdir" config --replace-all remote.origin.url "$(resolve_source_url "$source_root" "$url")"
+      saw_url=1
+    else
+      "$git_bin" --git-dir "$gitdir" config --add remote.origin.url "$(resolve_source_url "$source_root" "$url")"
+    fi
+  done < <("$git_bin" -C "$source" config --get-all remote.origin.url 2>/dev/null || true)
+  if [ "$saw_url" -eq 0 ]; then
+    "$git_bin" --git-dir "$gitdir" remote remove origin >/dev/null 2>&1 || true
+    return
+  fi
+  "$git_bin" --git-dir "$gitdir" config --replace-all remote.origin.fetch '+refs/heads/*:refs/remotes/origin/*'
+  "$git_bin" --git-dir "$gitdir" config --unset-all remote.origin.pushurl >/dev/null 2>&1 || true
+  while IFS= read -r pushurl; do
+    [ -n "$pushurl" ] || continue
+    "$git_bin" --git-dir "$gitdir" config --add remote.origin.pushurl "$(resolve_source_url "$source_root" "$pushurl")"
+  done < <("$git_bin" -C "$source" config --get-all remote.origin.pushurl 2>/dev/null || true)
+  while IFS= read -r ref; do
+    [ -n "$ref" ] || continue
+    oid="$("$git_bin" -C "$source" rev-parse "$ref^{commit}")"
+    "$git_bin" --git-dir "$gitdir" update-ref "$ref" "$oid"
+    configure_branch_tracking "$gitdir" "${ref#refs/remotes/origin/}"
+  done < <("$git_bin" -C "$source" for-each-ref --format='%(refname)' refs/remotes/origin)
+}
+
+safe_remove_created_project() {
+  local target="$1" dev_root="$2" canonical parent
+  [ -d "$target" ] && [ ! -L "$target" ] || return 0
+  canonical="$(realpath "$target")"
+  parent="$(realpath "$(dirname -- "$target")")"
+  [ "$parent" = "$dev_root" ] && [ "$canonical" != "$dev_root" ] || die "refusing to remove unexpected project path: $target"
+  rm -R -- "$canonical"
+}
+
+print_project() {
+  local path_only="$1" project_root="$2" worktree_path="$3" branch="$4"
+  if [ "$path_only" -eq 1 ]; then
+    printf '%s\n' "$worktree_path"
+  else
+    cat <<EOF
+Created Git project:
+  project:  $project_root
+  bare:     $project_root/.git
+  worktree: $worktree_path
+  branch:   $branch
+EOF
+  fi
+}
+
+clone_project() (
+  local branch="" worktree="" dev_root="${GIT_PROJECTS_ROOT:-${HOME:-}/dev}" allow_new=0 path_only=0
+  local positionals=() remote repo selected project_root staging bare_git worktree_path success=0 project_created=0
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --branch) [ "$#" -ge 2 ] || usage; branch="$2"; shift 2 ;;
+      --worktree) [ "$#" -ge 2 ] || usage; worktree="$2"; shift 2 ;;
+      --dev-root) [ "$#" -ge 2 ] || usage; dev_root="$2"; shift 2 ;;
+      --allow-new-branch) allow_new=1; shift ;;
+      --path-only) path_only=1; shift ;;
+      --) shift; positionals+=("$@"); break ;;
+      --*) die "unknown clone option: $1" ;;
+      *) positionals+=("$1"); shift ;;
+    esac
+  done
+  [ "${#positionals[@]}" -ge 1 ] && [ "${#positionals[@]}" -le 2 ] || usage
+  remote="${positionals[0]}"
+  repo="${positionals[1]:-$(derive_repo_name "$remote")}"
+  require_name repo "$repo"
+  [ -z "$worktree" ] || require_name worktree "$worktree"
+  [ -z "$branch" ] || validate_branch "$branch"
+  dev_root="$(resolve_dev_root "$dev_root")"
+  project_root="$dev_root/$repo"
+  path_exists_or_symlink "$project_root" && die "project path already exists: $project_root"
+  staging="$dev_root/.clone-staging.$repo.$$"
+  path_exists_or_symlink "$staging" && die "staging path already exists: $staging"
+  # shellcheck disable=SC2329 # Invoked by the EXIT trap below.
+  cleanup() {
+    local status=$?
+    set +e
+    if [ "$success" -ne 1 ] && [ "$project_created" -eq 1 ] && path_exists_or_symlink "$project_root"; then
+      failed="$dev_root/.clone-failed.$repo.$(date +%Y%m%d%H%M%S).$$"
+      mv -- "$project_root" "$failed" && printf 'git-project: partial project moved to: %s\n' "$failed" >&2
+    fi
+    [ ! -e "$staging" ] && [ ! -L "$staging" ] || rm -R -- "$staging"
+    exit "$status"
+  }
+  trap cleanup EXIT
+  mkdir -- "$staging"
+  bare_git="$staging/.git"
+  "$git_bin" clone --bare "$remote" "$bare_git"
+  if [ -n "$branch" ]; then
+    selected="$branch"
+  elif "$git_bin" --git-dir "$bare_git" show-ref --verify --quiet refs/heads/main; then
+    selected=main
+  elif "$git_bin" --git-dir "$bare_git" show-ref --verify --quiet refs/heads/master; then
+    selected=master
+  else
+    die "remote does not contain a main or master branch; pass --branch BRANCH"
+  fi
+  if ! branch_exists "$bare_git" "$selected" && [ "$allow_new" -ne 1 ]; then
+    die "branch not found in remote: $selected"
+  fi
+  if [ -z "$worktree" ]; then
+    valid_name "$selected" || die "selected branch cannot be used as a worktree name; pass --worktree NAME"
+    worktree="$selected"
+  fi
+  mkdir -- "$project_root"
+  project_created=1
+  configure_bare_origin_tracking "$bare_git"
+  mv -- "$bare_git" "$project_root/.git"
+  rmdir -- "$staging"
+  staging=""
+  worktree_path="$(create_worktree "$project_root/.git" "$selected" "$project_root/$worktree" "$allow_new" "$allow_new")"
+  success=1
+  print_project "$path_only" "$project_root" "$worktree_path" "$selected"
+)
+
+setup_project() (
+  local project_mode="$1" source="" project="" worktree=main dev_root="${GIT_PROJECTS_ROOT:-${HOME:-}/dev}" path_only=0 project_root path success=0
+  shift
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --source) [ "$project_mode" = adopt ] || usage; source="$2"; shift 2 ;;
+      --project) project="$2"; shift 2 ;;
+      --worktree) worktree="$2"; shift 2 ;;
+      --dev-root) dev_root="$2"; shift 2 ;;
+      --path-only) path_only=1; shift ;;
+      *) usage ;;
+    esac
+  done
+  if [ "$project_mode" = adopt ]; then
+    [ -d "$source" ] || die "repository path not found: $source"
+  fi
+  require_name project "$project"
+  require_name worktree "$worktree"
+  dev_root="$(resolve_dev_root "$dev_root")"
+  project_root="$dev_root/$project"
+  path_exists_or_symlink "$project_root" && die "project path already exists: $project_root"
+  trap '[ "$success" -eq 1 ] || safe_remove_created_project "$project_root" "$dev_root"' EXIT
+  mkdir -- "$project_root"
+  if [ "$project_mode" = adopt ]; then
+    "$git_bin" clone --bare "$source" "$project_root/.git"
+    configure_adopted_origin "$source" "$project_root/.git"
+  else
+    "$git_bin" init --bare --quiet "$project_root/.git"
+  fi
+  path="$(create_worktree "$project_root/.git" "$worktree" "$project_root/$worktree" 1 1)"
+  success=1
+  print_project "$path_only" "$project_root" "$path" "$worktree"
+)
+
+add_worktree() {
+  local branch="" base_ref="" cwd="$PWD" gitdir="" destination="" root="" orphan=0 top common slug base
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --branch) branch="$2"; shift 2 ;;
+      --base) base_ref="$2"; shift 2 ;;
+      --cwd) cwd="$2"; shift 2 ;;
+      --git-dir) gitdir="$2"; shift 2 ;;
+      --destination) destination="$2"; shift 2 ;;
+      --root) root="$2"; shift 2 ;;
+      --orphan-fallback) orphan=1; shift ;;
+      *) usage ;;
+    esac
+  done
+  validate_branch "$branch"
+  if [ -z "$gitdir" ]; then
+    top="$("$git_bin" -C "$cwd" rev-parse --show-toplevel)"
+    common="$("$git_bin" -C "$cwd" rev-parse --git-common-dir)"
+    case "$common" in /*) ;; *) common="$top/$common" ;; esac
+    gitdir="$(realpath "$common")"
+  else
+    gitdir="$(realpath "$gitdir")"
+    top="$("$git_bin" --git-dir "$gitdir" worktree list --porcelain | sed -n '1s/^worktree //p')"
+  fi
+  if [ -z "$destination" ]; then
+    [[ "$branch" =~ ^[A-Za-z0-9][A-Za-z0-9._/-]{0,199}$ ]] && [[ "$branch" != *..* ]] || die "branch cannot map safely to a worktree directory: $branch"
+    slug="${branch//\//-}"
+    if [ -n "$root" ]; then
+      base="$(expand_home "$root")"
+    elif [ "$(basename "$gitdir")" = .git ] && [ "$(dirname "$gitdir")" != "$(realpath "$top")" ]; then
+      base="$(dirname "$gitdir")"
+    else
+      base="$(dirname "$(realpath "$top")")"
+    fi
+    destination="$base/$slug"
+  fi
+  create_worktree "$gitdir" "$branch" "$destination" 1 "$orphan" "$base_ref"
+}
+
+command="${1:-}"
+[ -n "$command" ] || usage
+shift
+case "$command" in
+  clone) clone_project "$@" ;;
+  init) setup_project init "$@" ;;
+  adopt) setup_project adopt "$@" ;;
+  worktree) add_worktree "$@" ;;
+  inspect) inspect_project "$@" ;;
+  list) list_projects "$@" ;;
+  -h | --help | help) usage ;;
+  *) usage ;;
+esac

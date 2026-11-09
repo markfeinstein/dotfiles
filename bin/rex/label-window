@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -ne 1 ]]; then
+  echo "usage: rex-label-window WORKING_DIRECTORY" >&2
+  exit 64
+fi
+if [[ -z ${REX_SESSION:-} || -z ${REX_BLOCK:-} ]]; then
+  exit 0
+fi
+
+working_directory=$1
+[[ -d $working_directory ]] || exit 0
+working_directory=$(realpath "$working_directory")
+rex_bin=${REX_BIN_PATH:-rex}
+git_bin=${GIT_BIN_PATH:-git}
+state_home=${XDG_STATE_HOME:-"$HOME/.local/state"}
+state_dir="$state_home/rex"
+state_file="$state_dir/window-labels.tsv"
+
+block_json=$("$rex_bin" block inspect -s "$REX_SESSION" "$REX_BLOCK" --json) || exit 0
+window_id=$(printf '%s' "$block_json" | jq -er '.block.window_id // empty') || exit 0
+session_json=$("$rex_bin" session inspect "$REX_SESSION" --json) || exit 0
+current_label=$(
+  printf '%s' "$session_json" |
+    jq -er --arg window "$window_id" '.windows[] | select(.window_id == $window) | .label // empty'
+) || exit 0
+
+previous=
+if [[ -f $state_file ]]; then
+  previous=$(awk -F '\t' -v session="$REX_SESSION" -v window="$window_id" '
+    $1 == session && $2 == window { value = $3 }
+    END { print value }
+  ' "$state_file")
+fi
+
+agent_tab=false
+if [[ $current_label =~ ^Window\ [[:xdigit:]]{8}$ ]]; then
+  :
+elif [[ $current_label == subagent-* ]]; then
+  agent_tab=true
+elif [[ -n $previous && $current_label == "$previous" ]]; then
+  :
+else
+  exit 0
+fi
+
+project=
+branch=
+top=$("$git_bin" -C "$working_directory" rev-parse --show-toplevel 2>/dev/null || true)
+if [[ -n $top ]]; then
+  common=$("$git_bin" -C "$top" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
+  if [[ $common == */.git ]]; then
+    project=${common%/.git}
+  else
+    project=$top
+  fi
+  project=${project##*/}
+  branch=$("$git_bin" -C "$top" branch --show-current 2>/dev/null || true)
+else
+  project=${working_directory##*/}
+fi
+[[ -n $project ]] || exit 0
+
+label=$project
+if [[ -n $branch ]]; then
+  label="$label · $branch"
+fi
+if [[ $agent_tab == true ]]; then
+  label="Agent · $label"
+fi
+label=${label:0:128}
+[[ $label != "$current_label" ]] || exit 0
+
+"$rex_bin" window rename -s "$REX_SESSION" "$window_id" "$label" >/dev/null || exit 0
+
+mkdir -p "$state_dir"
+tmp=$(mktemp "$state_file.XXXXXX")
+chmod 0600 "$tmp"
+if [[ -f $state_file ]]; then
+  awk -F '\t' -v session="$REX_SESSION" -v window="$window_id" '
+    !($1 == session && $2 == window)
+  ' "$state_file" >"$tmp"
+fi
+printf '%s\t%s\t%s\n' "$REX_SESSION" "$window_id" "$label" >>"$tmp"
+mv "$tmp" "$state_file"

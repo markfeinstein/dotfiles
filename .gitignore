@@ -1,0 +1,28 @@
+# macOS and editor artifacts
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Nix and direnv outputs
+.direnv/
+result
+result-*
+
+# Language and package-manager caches
+__pycache__/
+*.py[cod]
+node_modules/
+
+# Local environment and credential files
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+credentials.json
+secrets.json

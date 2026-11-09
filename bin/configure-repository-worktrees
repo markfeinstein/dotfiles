@@ -1,0 +1,96 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+dry_run=0
+repo=
+label=
+
+usage() {
+  echo "usage: configure-repository-worktrees --repo PATH --label DESCRIPTION [--dry-run]" >&2
+  exit 64
+}
+
+while (($#)); do
+  case "$1" in
+  --repo)
+    (($# >= 2)) || usage
+    repo=$2
+    shift 2
+    ;;
+  --label)
+    (($# >= 2)) || usage
+    label=$2
+    shift 2
+    ;;
+  --dry-run)
+    dry_run=1
+    shift
+    ;;
+  *) usage ;;
+  esac
+done
+
+[[ $repo == /* && -n $label ]] || usage
+if [[ -d $repo ]]; then
+  repo=$(realpath "$repo")
+fi
+
+git_dir="$repo/.git"
+hooks_path="$repo/.githooks"
+excludes_file="$repo/.gitignore-local"
+hook="$hooks_path/post-checkout"
+
+if [[ ! -e $git_dir ]]; then
+  echo "Skipping $label Git configuration: missing $git_dir"
+  exit 0
+fi
+
+if ((dry_run)); then
+  echo "Would configure $label Git hooks and excludes"
+  echo "Would provision existing $label linked worktrees"
+  exit 0
+fi
+
+if [[ ! -x $hook ]]; then
+  echo "Refusing to configure missing post-checkout hook: $hook" >&2
+  exit 1
+fi
+
+existing_hooks_path="$(git --git-dir="$git_dir" config --local --get-all core.hooksPath 2>/dev/null || true)"
+existing_excludes_file="$(git --git-dir="$git_dir" config --local --get-all core.excludesFile 2>/dev/null || true)"
+
+if [[ -n $existing_hooks_path && $existing_hooks_path != "$hooks_path" ]]; then
+  echo "Refusing to replace local core.hooksPath values: $existing_hooks_path" >&2
+  exit 1
+fi
+
+if [[ -n $existing_excludes_file && $existing_excludes_file != "$excludes_file" ]]; then
+  echo "Refusing to replace local core.excludesFile values: $existing_excludes_file" >&2
+  exit 1
+fi
+
+# shellcheck source=bin/lib/worktrees.sh
+source "$(dirname -- "$(realpath -- "${BASH_SOURCE[0]}")")/lib/worktrees.sh"
+worktrees="$(mktemp)"
+trap 'rm -f "$worktrees"' EXIT HUP INT TERM
+git --git-dir="$git_dir" worktree list --porcelain -z >"$worktrees"
+
+provision_worktree() {
+  local worktree_path=$1
+  if [[ ! -d $worktree_path ]]; then
+    echo "Skipping missing $label worktree: $worktree_path" >&2
+    return 0
+  fi
+  (cd "$worktree_path" && "$hook" 0000000000000000000000000000000000000000 HEAD 1)
+}
+
+for_each_live_worktree provision_worktree <"$worktrees"
+
+# Install shared Git config only after every in-scope worktree was provisioned
+# successfully, so a conflict cannot leave partial ownership behind.
+git --git-dir="$git_dir" config --local --replace-all core.hooksPath "$hooks_path"
+git --git-dir="$git_dir" config --local --replace-all core.excludesFile "$excludes_file"
+
+rm -f "$worktrees"
+trap - EXIT HUP INT TERM
