@@ -91,17 +91,9 @@
     packages = packageSpecs;
   };
 
-  homeAssistant = import ./pi/home-assistant.nix {
-    inherit lib pkgs;
-    cfg = cfg.homeAssistant;
+  mcpPermissionConfig = jsonFormat.generate "mcp-permissions.json" {
+    trustedServers = cfg.mcpPermissions.trustedServers;
   };
-
-  trustedServers =
-    cfg.mcpPermissions.trustedServers
-    // lib.optionalAttrs cfg.homeAssistant.enable {
-      homeassistant = homeAssistant.trustedServer;
-    };
-  mcpPermissionConfig = jsonFormat.generate "mcp-permissions.json" {inherit trustedServers;};
 
   guardrailsConfig =
     pkgs.writeText "guardrails.json" (builtins.toJSON (import ./pi/guardrails.nix));
@@ -146,25 +138,6 @@ in {
       default = {};
       description = "Exact non-secret MCP server identity policies";
     };
-
-    homeAssistant = {
-      enable = lib.mkEnableOption "personal Home Assistant project MCP integration";
-      repositoryPath = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        description = "Existing bare-repository container for Home Assistant automation";
-      };
-      endpointUrl = lib.mkOption {
-        type = lib.types.nullOr lib.types.str;
-        default = null;
-        description = "Pinned Home Assistant OAuth MCP endpoint";
-      };
-      oauth = lib.mkOption {
-        inherit (jsonFormat) type;
-        default = {};
-        description = "Non-secret OAuth client metadata for the Home Assistant MCP endpoint";
-      };
-    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -172,22 +145,6 @@ in {
       {
         assertion = lib.all (name: builtins.hasAttr name availableSkills) selectedSkills;
         message = "dotfiles.pi.skills contains an unavailable skill";
-      }
-      {
-        assertion =
-          !cfg.homeAssistant.enable
-          || (cfg.homeAssistant.repositoryPath
-            != null
-            && lib.hasPrefix "/" cfg.homeAssistant.repositoryPath);
-        message = "Enabled dotfiles.pi.homeAssistant.repositoryPath must be absolute";
-      }
-      {
-        assertion =
-          !cfg.homeAssistant.enable
-          || (cfg.homeAssistant.endpointUrl
-            != null
-            && lib.hasPrefix "https://" cfg.homeAssistant.endpointUrl);
-        message = "Enabled dotfiles.pi.homeAssistant.endpointUrl must use HTTPS";
       }
     ];
 
@@ -287,9 +244,6 @@ in {
                 ${lib.getExe config.programs.pi-coding-agent.package} update
             fi
           '';
-
-        manageHomeAssistantPi =
-          lib.mkIf cfg.homeAssistant.enable homeAssistant.activation;
       };
     };
   };

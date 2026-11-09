@@ -23,12 +23,16 @@
   };
   yabaiOverlay = final: _prev: let
     rawYabai = yabai.packages.${final.stdenv.hostPlatform.system}.default;
+    bundleIdentifier = "com.markfeinstein.yabai.local-development";
   in {
     yabai = rawYabai;
 
     yabaiAppBundle =
       final.runCommand "yabai-app-bundle-${rawYabai.version}" {
-        passthru.rawPackage = rawYabai;
+        passthru = {
+          inherit bundleIdentifier;
+          rawPackage = rawYabai;
+        };
       } ''
         app="$out/Applications/Yabai.app"
         mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
@@ -43,7 +47,7 @@
           <key>CFBundleExecutable</key>
           <string>yabai</string>
           <key>CFBundleIdentifier</key>
-          <string>com.asmvik.yabai</string>
+          <string>${bundleIdentifier}</string>
           <key>CFBundleName</key>
           <string>Yabai</string>
           <key>CFBundlePackageType</key>
@@ -135,7 +139,10 @@
     home-manager.users.${config.profile.user.username}.imports = [homeModule];
   };
 
-  darwinPersonal = mkDarwinProfile "personal" homePersonal;
+  darwinPersonal = {
+    imports = [(mkDarwinProfile "personal" homePersonal)];
+    dotfiles.yabai.fixedSpaceTargets = true;
+  };
   darwinWork = mkDarwinProfile "work" homeWork;
 
   mkHome = system: profileModule:

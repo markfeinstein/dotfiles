@@ -409,6 +409,8 @@
     primaryHome
     "--comparator"
     (toString ./scripts/compare-yabai-macho.py)
+    "--bundle-identifier"
+    pkgs.yabaiAppBundle.bundleIdentifier
   ];
   installYabaiAppActivation = ''
     yabai_app_install_result="$(${lib.getExe installYabaiApp} ${installYabaiAppArgs})"
