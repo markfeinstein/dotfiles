@@ -4,7 +4,6 @@
   dotfiles = {
     credentials.enable = true;
     homelab.enable = true;
-    keyboardFirmware.enable = true;
 
     rex.passwordPicker.enable = true;
 
