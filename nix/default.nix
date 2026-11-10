@@ -21,63 +21,8 @@
   rexPickerOverlay = final: _prev: {
     rex-picker = rex-picker.packages.${final.stdenv.hostPlatform.system}.default;
   };
-  yabaiOverlay = final: _prev: let
-    rawYabai = yabai.packages.${final.stdenv.hostPlatform.system}.default;
-    bundleIdentifier = "com.markfeinstein.yabai.local-development";
-  in {
-    yabai = rawYabai;
-
-    yabaiAppBundle =
-      final.runCommand "yabai-app-bundle-${rawYabai.version}" {
-        passthru = {
-          inherit bundleIdentifier;
-          rawPackage = rawYabai;
-        };
-      } ''
-        app="$out/Applications/Yabai.app"
-        executable="$app/Contents/MacOS/yabai"
-        source_executable=${rawYabai}/bin/yabai
-        mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
-        /usr/bin/lipo "$source_executable" -verify_arch arm64
-        if [ "$(/usr/bin/lipo -archs "$source_executable")" = arm64 ]; then
-          cp "$source_executable" "$executable"
-        else
-          /usr/bin/lipo -thin arm64 "$source_executable" -output "$executable"
-        fi
-        chmod 0755 "$executable"
-        /usr/bin/codesign --remove-signature "$app/Contents/MacOS/yabai"
-        cat >"$app/Contents/Info.plist" <<'EOF'
-        <?xml version="1.0" encoding="UTF-8"?>
-        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-        <plist version="1.0">
-        <dict>
-          <key>CFBundleExecutable</key>
-          <string>yabai</string>
-          <key>CFBundleIdentifier</key>
-          <string>${bundleIdentifier}</string>
-          <key>CFBundleName</key>
-          <string>Yabai</string>
-          <key>CFBundlePackageType</key>
-          <string>APPL</string>
-          <key>CFBundleShortVersionString</key>
-          <string>${rawYabai.version}</string>
-          <key>CFBundleVersion</key>
-          <string>${rawYabai.version}</string>
-          <key>LSUIElement</key>
-          <true/>
-        </dict>
-        </plist>
-        EOF
-        (
-          cd "$app"
-          ${final.coreutils}/bin/sha256sum Contents/Info.plist Contents/MacOS/yabai \
-            >Contents/Resources/content-manifest.sha256
-        )
-      '';
-
-    yabaiAppShim = final.writeShellScriptBin "yabai" ''
-      exec /Applications/Yabai.app/Contents/MacOS/yabai "$@"
-    '';
+  yabaiOverlay = final: _prev: {
+    yabai = yabai.packages.${final.stdenv.hostPlatform.system}.default;
   };
   overlay = lib.composeManyExtensions [
     neovim-nightly-overlay.overlays.default
@@ -118,6 +63,8 @@
   };
 
   darwinFoundation = {
+    _module.args.yabaiInput = yabai;
+
     imports = [
       ./modules/darwin
       ./modules/profile.nix
@@ -185,6 +132,8 @@
     }
     // lib.mapAttrs (_: hostModule: mkDarwin [darwinPersonal hostModule]) darwinHosts;
   m5Pkgs = darwinConfigurations.m5.pkgs;
+  m5Username = darwinConfigurations.m5.config.system.primaryUser;
+  m5YabaiPackage = darwinConfigurations.m5.config.home-manager.users.${m5Username}.programs.yabai.finalPackage;
   checks =
     lib.recursiveUpdate
     (lib.genAttrs systems (system: let
@@ -233,16 +182,18 @@
         darwin-personal = darwinConfigurations.personal.config.system.build.toplevel;
         darwin-work = darwinConfigurations.work.config.system.build.toplevel;
         darwin-m5 = darwinConfigurations.m5.config.system.build.toplevel;
-        yabai-app-bundle = m5Pkgs.runCommand "yabai-app-bundle-check" {} ''
-          app=${m5Pkgs.yabaiAppBundle}/Applications/Yabai.app
+        yabai-signed-app = m5Pkgs.runCommand "yabai-signed-app-check" {} ''
+          app=${m5YabaiPackage}/Applications/Yabai.app
           executable="$app/Contents/MacOS/yabai"
 
           test -x "$executable"
           /usr/bin/lipo "$executable" -verify_arch arm64
           test "$(/usr/bin/lipo -archs "$executable")" = arm64
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = \
-            com.markfeinstein.yabai.local-development
-          (cd "$app" && ${m5Pkgs.coreutils}/bin/sha256sum -c Contents/Resources/content-manifest.sha256)
+            com.markfeinstein.yabai
+          /usr/bin/codesign --verify --deep --strict "$app"
+          /usr/bin/codesign -dv --verbose=4 "$app" 2>&1 \
+            | ${m5Pkgs.gnugrep}/bin/grep -Fx 'TeamIdentifier=GYXXG6S7KM'
           touch "$out"
         '';
         rex-app-bundle = m5Pkgs.runCommand "rex-app-bundle-check" {} ''

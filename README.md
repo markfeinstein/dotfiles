@@ -100,9 +100,17 @@ selected output matches the current account, so forks should override
 
 The `m5` host enables the fixed Space 1-9 Yabai assignments. The native
 configuration is intentionally strict, so provision nine ordinary macOS Spaces
-before activating a host that enables fixed targets. The locally signed
-development app uses a bundle identifier distinct from published Yabai bundles
-so macOS privacy identity does not overlap them.
+before activating a host that enables fixed targets.
+
+Yabai uses the signed artifact metadata pinned by its flake input. It follows the
+latest verified nightly when one is available and falls back to the latest
+signed release before the nightly channel has published its first artifact.
+Updating the `yabai` input advances that pin without requiring a local signing
+certificate. A profile can remain on signed releases explicitly with:
+
+```nix
+dotfiles.yabai.installSource = "release";
+```
 
 The `m5` host module owns its OpenLogi device identifier. Device identifiers
 are stable hardware inventory rather than credentials, so other public or
