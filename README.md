@@ -13,12 +13,15 @@ the nix-darwin output. This repository defines public personal hosts:
 darwinConfigurations.m5
 ```
 
-`--host` and `DOTFILES_HOST` override host selection; otherwise the lifecycle
-commands use the macOS LocalHostName and then `hostname -s`. The selected host
-configuration must declare the selected `personal` or `work` profile.
+`--host` and `DOTFILES_HOST` select an exact nix-darwin output. Without an
+explicit override, bootstrap uses the macOS LocalHostName and then `hostname -s`
+when a matching host output exists, falling back to the selected `personal` or
+`work` profile output otherwise. The selected configuration must declare the
+selected profile.
 
-Generic `darwinConfigurations.personal` and `.work` outputs remain available for
-evaluation and composition. Linux continues to use profile outputs:
+Generic `darwinConfigurations.personal` and `.work` outputs provide the fallback
+and remain available for evaluation and composition. Linux continues to use
+profile outputs:
 
 ```text
 homeConfigurations.<system>-personal
@@ -40,11 +43,12 @@ a compatibility contract, not a value that should automatically follow the
 installed release. Downstream modules may override it deliberately. The numeric
 nix-darwin `system.stateVersion` is a separate platform contract.
 
-Set optional default remote sources independently:
+Both profiles default to `github:markfeinstein/dotfiles/main`. Override their
+default remote sources independently when a profile should use a downstream
+flake:
 
 ```sh
-export DOTFILES_PERSONAL_FLAKE='github:markfeinstein/dotfiles/main'
-export DOTFILES_WORK_FLAKE='github:markfeinstein/dotfiles/main'
+export DOTFILES_WORK_FLAKE='github:OWNER/work-dotfiles/main'
 ```
 
 `DOTFILES_FLAKE` or `--flake` overrides the selected profile source for one run.
@@ -153,17 +157,30 @@ so the permission extension prompts before its calls.
 
 ## Install
 
-From a reviewed copy of the bootstrap script:
+Run the standalone bootstrap directly from a reviewed revision:
 
 ```sh
-./bin/bootstrap --profile personal --host m5 --flake github:markfeinstein/dotfiles/main
+curl -fsSL https://raw.githubusercontent.com/markfeinstein/dotfiles/main/bin/bootstrap \
+  | /bin/sh -s -- --profile personal
 ```
+
+Omit `--profile` to choose interactively. On macOS, bootstrap uses a matching
+host output when one exists and otherwise falls back to the selected profile
+output. Use `--host NAME` only to require an exact output.
 
 Bootstrap accepts an existing compatible Nix installation, installs Determinate
 Nix when Nix is absent, and activates the selected nix-darwin or Home Manager
 profile. The macOS package signature is checked against Determinate Systems'
 signing team; Linux uses a versioned installer binary with a pinned SHA-256.
-Bootstrap does not clone the repository or provision credentials.
+Bootstrap does not clone the repository or provision credentials. A private
+downstream flake can be selected on a fresh machine with `--flake` and accessed
+with an interactively supplied token:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/markfeinstein/dotfiles/main/bin/bootstrap \
+  | /bin/sh -s -- --profile work \
+      --flake github:OWNER/work-dotfiles/main --auth-github
+```
 
 ## Repository safety
 

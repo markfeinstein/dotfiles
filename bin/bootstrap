@@ -4,9 +4,11 @@ set -eu
 profile=
 profile_from_flag=0
 host=
+host_from_override=0
 flake=${DOTFILES_FLAKE:-}
-personal_flake=${DOTFILES_PERSONAL_FLAKE:-}
-work_flake=${DOTFILES_WORK_FLAKE:-}
+default_flake=github:markfeinstein/dotfiles/main
+personal_flake=${DOTFILES_PERSONAL_FLAKE:-$default_flake}
+work_flake=${DOTFILES_WORK_FLAKE:-$default_flake}
 profile_file=${DOTFILES_PROFILE_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles/profile}
 auth_github=0
 tmp_dir=
@@ -25,11 +27,13 @@ Installs Determinate Nix when Nix is absent, then activates the selected profile
 Profile precedence:
   --profile, DOTFILES_PROFILE, persisted profile, interactive prompt
 
-Darwin host precedence:
-  --host, DOTFILES_HOST, macOS LocalHostName, hostname -s
+Darwin configuration selection:
+  --host or DOTFILES_HOST selects an exact output. Otherwise bootstrap tries
+  the macOS LocalHostName, then hostname -s, and falls back to the profile name.
 
 Remote source precedence:
-  --flake or DOTFILES_FLAKE, then the selected profile's default flake
+  --flake or DOTFILES_FLAKE, the selected profile's default flake, then
+  github:markfeinstein/dotfiles/main
 
 Environment:
   DOTFILES_PROFILE          temporary profile override
@@ -39,7 +43,7 @@ Environment:
   DOTFILES_PERSONAL_FLAKE   default personal flake
   DOTFILES_WORK_FLAKE       default work flake
 
-macOS flakes must export darwinConfigurations.<host>.
+macOS flakes must export darwinConfigurations.<host> or a profile fallback.
 Linux flakes must export homeConfigurations.<system>-<profile>.
 HELP
 }
@@ -47,14 +51,121 @@ HELP
 fail() { printf 'bootstrap: %s\n' "$*" >&2; exit 1; }
 log() { printf '\n==> %s\n' "$*"; }
 
-script=$0
-case $script in
-  */*) ;;
-  *) script=$(command -v "$script") || fail 'could not resolve bootstrap path' ;;
-esac
-script_dir=$(CDPATH='' cd -P "$(dirname "$script")" && pwd -P)
-# shellcheck source=bin/lib/profile.sh
-. "$script_dir/lib/profile.sh"
+persist_dotfiles_profile() {
+  profile_dir=$(dirname "$profile_file")
+  umask 077
+  mkdir -p "$profile_dir" || fail "could not create profile directory: $profile_dir"
+  profile_tmp=$(mktemp "$profile_dir/profile.tmp.XXXXXX") || fail 'could not create profile temp file'
+  printf '%s\n' "$profile" >"$profile_tmp"
+  chmod 600 "$profile_tmp"
+  mv -f "$profile_tmp" "$profile_file"
+  profile_tmp=
+}
+
+select_dotfiles_profile() {
+  persist_profile=0
+  if [ -z "$profile" ] && [ -n "${DOTFILES_PROFILE:-}" ]; then
+    profile=$DOTFILES_PROFILE
+  elif [ -z "$profile" ] && [ -f "$profile_file" ]; then
+    IFS= read -r profile <"$profile_file" || fail "could not read persisted profile: $profile_file"
+  elif [ -z "$profile" ]; then
+    [ -r /dev/tty ] || fail 'pass --profile, set DOTFILES_PROFILE, or create the persisted profile file'
+    printf 'Select profile: 1) personal  2) work\nSelection: ' >/dev/tty
+    IFS= read -r answer </dev/tty || fail 'could not read profile'
+    case $answer in
+      1|personal) profile=personal ;;
+      2|work) profile=work ;;
+      *) fail 'invalid profile' ;;
+    esac
+    persist_profile=1
+  fi
+
+  case $profile in
+    personal|work) ;;
+    *) fail "invalid profile: $profile" ;;
+  esac
+  [ "$profile_from_flag" -eq 0 ] || persist_profile=1
+  [ "$persist_profile" -eq 0 ] || persist_dotfiles_profile
+}
+
+resolve_dotfiles_system() {
+  case $(uname -s) in
+    Darwin) os=darwin ;;
+    Linux) os=linux ;;
+    *) fail 'unsupported OS (macOS and Linux only)' ;;
+  esac
+  case $(uname -m) in
+    arm64|aarch64) arch=aarch64 ;;
+    x86_64|amd64) arch=x86_64 ;;
+    *) fail 'unsupported CPU architecture' ;;
+  esac
+  system="${arch}-${os}"
+}
+
+resolve_dotfiles_host() {
+  if [ "$os" != darwin ]; then
+    [ -z "$host" ] && [ -z "${DOTFILES_HOST:-}" ] || fail '--host and DOTFILES_HOST are supported only on macOS'
+    return
+  fi
+
+  if [ -z "$host" ] && [ -n "${DOTFILES_HOST:-}" ]; then
+    host=$DOTFILES_HOST
+    host_from_override=1
+  fi
+  if [ -z "$host" ] && command -v scutil >/dev/null 2>&1; then
+    host=$(scutil --get LocalHostName 2>/dev/null || true)
+  fi
+  if [ -z "$host" ]; then
+    host=$(hostname -s 2>/dev/null || true)
+  fi
+
+  case $host in
+    ''|*[!A-Za-z0-9._-]*) fail "invalid Darwin host configuration name: ${host:-empty}" ;;
+  esac
+}
+
+has_darwin_configuration() {
+  wanted_configuration=$1
+  while IFS= read -r available_configuration; do
+    [ "$available_configuration" = "$wanted_configuration" ] && return 0
+  done <<EOF
+$darwin_configurations
+EOF
+  return 1
+}
+
+select_darwin_configuration() {
+  host_configuration_profile=
+  darwin_configurations=$(nix eval --refresh --raw "${flake}#darwinConfigurations" \
+    --apply 'configs: builtins.concatStringsSep "\n" (builtins.attrNames configs)') || \
+    fail 'could not list nix-darwin configurations'
+
+  if has_darwin_configuration "$host"; then
+    host_configuration_profile=$(nix eval --refresh --raw \
+      "${flake}#darwinConfigurations.\"${host}\".config.profile.name") || \
+      fail "could not evaluate darwinConfigurations.$host profile"
+    if [ "$host_configuration_profile" = "$profile" ]; then
+      darwin_configuration=$host
+      return
+    fi
+    if [ "$host_from_override" -eq 1 ]; then
+      fail "darwinConfigurations.$host selects the '$host_configuration_profile' profile, not '$profile'"
+    fi
+  elif [ "$host_from_override" -eq 1 ]; then
+    fail "flake does not export darwinConfigurations.$host"
+  fi
+
+  if has_darwin_configuration "$profile"; then
+    darwin_configuration=$profile
+    if [ -n "${host_configuration_profile:-}" ]; then
+      log "Host '$host' selects the '$host_configuration_profile' profile; using the '$profile' profile configuration"
+    else
+      log "No configuration for host '$host'; using the '$profile' profile configuration"
+    fi
+  else
+    fail "flake does not export a '$profile' configuration for host '$host' or profile fallback"
+  fi
+}
 
 cleanup() {
   [ -z "$tmp_dir" ] || rm -rf "$tmp_dir"
@@ -66,8 +177,8 @@ while [ "$#" -gt 0 ]; do
   case $1 in
     --profile) [ "$#" -ge 2 ] || fail '--profile requires a value'; profile=$2; profile_from_flag=1; shift 2 ;;
     --profile=*) profile=${1#*=}; profile_from_flag=1; shift ;;
-    --host) [ "$#" -ge 2 ] || fail '--host requires a value'; host=$2; shift 2 ;;
-    --host=*) host=${1#*=}; shift ;;
+    --host) [ "$#" -ge 2 ] || fail '--host requires a value'; host=$2; host_from_override=1; shift 2 ;;
+    --host=*) host=${1#*=}; host_from_override=1; shift ;;
     --flake) [ "$#" -ge 2 ] || fail '--flake requires a value'; flake=$2; shift 2 ;;
     --flake=*) flake=${1#*=}; shift ;;
     --auth-github) auth_github=1; shift ;;
@@ -177,7 +288,8 @@ if [ "$auth_github" -eq 1 ]; then
 fi
 
 if [ "$os" = darwin ]; then
-  attr="darwinConfigurations.\"${host}\""
+  select_darwin_configuration
+  attr="darwinConfigurations.\"${darwin_configuration}\""
   target="${flake}#${attr}.config.system.build.toplevel"
   selected_profile=$(nix eval --refresh --raw "${flake}#${attr}.config.profile.name") || fail 'could not evaluate configuration profile'
   expected_user=$(nix eval --refresh --raw "${flake}#${attr}.config.system.primaryUser") || fail 'could not evaluate profile account'
@@ -210,7 +322,7 @@ else
 fi
 
 if [ "$os" = darwin ]; then
-  printf '\nBootstrap complete: %s profile / %s host / %s\n' "$profile" "$host" "$system"
+  printf '\nBootstrap complete: %s profile / %s configuration / %s\n' "$profile" "$darwin_configuration" "$system"
 else
   printf '\nBootstrap complete: %s profile / %s\n' "$profile" "$system"
 fi
