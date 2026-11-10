@@ -82,7 +82,14 @@
     # Core language servers and required runtimes.
     pkgs.bash-language-server
     pkgs.lua-language-server
-    pkgs.marksman
+    # Keep Markdown support without bootstrapping .NET from source.
+    (pkgs.marksman.override {
+      dotnetCorePackages =
+        pkgs.dotnetCorePackages
+        // {
+          runtime_9_0 = pkgs.dotnetCorePackages.runtime_9_0-bin;
+        };
+    })
     pkgs.nix
     pkgs.nixd
     pkgs.nushell
