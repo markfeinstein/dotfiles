@@ -59,6 +59,11 @@ machine unless explicitly overridden.
 
 ## Neovim tooling groups
 
+Marksman uses hash-pinned upstream release executables on macOS and Linux,
+without compiling Marksman or installing a separate .NET SDK/runtime. Its Nix
+package runs a version check after installation. Update the release version and
+platform hashes together in `nix/packages/marksman-bin.nix`.
+
 Neovim's wrapped runtime keeps core editor dependencies separate from optional
 Go, Rust, web, infrastructure, SQL, and document-rendering tool groups. All
 groups remain enabled by default so existing profiles preserve their current
