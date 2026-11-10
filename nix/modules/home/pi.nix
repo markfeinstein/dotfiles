@@ -73,6 +73,7 @@
   commonExtraPackages = [
     pkgs.nodejs
     pkgs.bun
+    pkgs.git
     pkgs.ffmpeg
     pkgs.yt-dlp
   ];
