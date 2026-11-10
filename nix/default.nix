@@ -187,9 +187,15 @@
   m5Pkgs = darwinConfigurations.m5.pkgs;
   checks =
     lib.recursiveUpdate
-    (lib.genAttrs systems (system: {
+    (lib.genAttrs systems (system: let
+      pkgs = pkgsFor system;
+    in {
       home-personal = homeConfigurations."${system}-personal".activationPackage;
       home-work = homeConfigurations."${system}-work".activationPackage;
+      marksman-binary = pkgs.runCommand "marksman-binary-check" {} ''
+        ${pkgs.python3}/bin/python ${./tests/marksman-lsp.py} ${lib.getExe pkgs.marksman}
+        touch "$out"
+      '';
     }))
     {
       aarch64-darwin = {
@@ -231,6 +237,7 @@ in {
       (pkgs)
       git-project
       git-readonly
+      marksman
       ;
   });
 
