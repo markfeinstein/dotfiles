@@ -1,12 +1,17 @@
 local M = {}
 
-M.specs = {
+local tooling = vim.g.dotfiles_neovim_tooling or {}
+local all_specs = {
 	{ name = "bashls", filetypes = { "bash", "sh", "zsh" } },
-	{ name = "buf_ls", filetypes = { "proto", "buf-config" } },
-	{ name = "cssls", filetypes = { "css", "scss", "less" } },
-	{ name = "docker_language_server", filetypes = { "dockerfile", "yaml.docker-compose" } },
-	{ name = "gopls", filetypes = { "go", "gomod", "gowork", "gotmpl", "asm" } },
-	{ name = "html", filetypes = { "html" } },
+	{ name = "buf_ls", filetypes = { "proto", "buf-config" }, tooling = "infrastructure" },
+	{ name = "cssls", filetypes = { "css", "scss", "less" }, tooling = "web" },
+	{
+		name = "docker_language_server",
+		filetypes = { "dockerfile", "yaml.docker-compose" },
+		tooling = "infrastructure",
+	},
+	{ name = "gopls", filetypes = { "go", "gomod", "gowork", "gotmpl", "asm" }, tooling = "go" },
+	{ name = "html", filetypes = { "html" }, tooling = "web" },
 	{
 		name = "htmx",
 		filetypes = {
@@ -22,13 +27,14 @@ M.specs = {
 			"typescriptreact",
 			"vue",
 		},
+		tooling = "web",
 	},
-	{ name = "jsonls", filetypes = { "json", "jsonc" } },
+	{ name = "jsonls", filetypes = { "json", "jsonc" }, tooling = "web" },
 	{ name = "lua_ls", filetypes = { "lua" } },
 	{ name = "marksman", filetypes = { "markdown" } },
 	{ name = "nushell", filetypes = { "nu" } },
-	{ name = "rust_analyzer", filetypes = { "rust" } },
-	{ name = "sqls", filetypes = { "mysql", "plsql", "sql" } },
+	{ name = "rust_analyzer", filetypes = { "rust" }, tooling = "rust" },
+	{ name = "sqls", filetypes = { "mysql", "plsql", "sql" }, tooling = "sql" },
 	{
 		name = "tailwindcss",
 		filetypes = {
@@ -51,15 +57,28 @@ M.specs = {
 			"typescriptreact",
 			"vue",
 		},
+		tooling = "web",
 	},
-	{ name = "terraformls", filetypes = { "hcl", "terraform", "terraform-vars" } },
+	{
+		name = "terraformls",
+		filetypes = { "hcl", "terraform", "terraform-vars" },
+		tooling = "infrastructure",
+	},
 	{
 		name = "ts_ls",
 		filetypes = { "javascript", "javascriptreact", "typescript", "typescriptreact" },
+		tooling = "web",
 	},
 	{ name = "yamlls", filetypes = { "yaml", "yaml.docker-compose" } },
 	{ name = "nixd", filetypes = { "nix" } },
 }
+
+M.specs = {}
+for _, spec in ipairs(all_specs) do
+	if spec.tooling == nil or tooling[spec.tooling] then
+		M.specs[#M.specs + 1] = spec
+	end
+end
 
 M.filetypes = {}
 for _, spec in ipairs(M.specs) do

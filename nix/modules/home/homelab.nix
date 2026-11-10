@@ -17,7 +17,6 @@ in {
         pkgs.git-filter-repo
         pkgs.gitleaks
         pkgs.google-cloud-sdk
-        pkgs.k9s
         pkgs.kubeconform
         pkgs.kubectl
         pkgs.kubernetes-helm
