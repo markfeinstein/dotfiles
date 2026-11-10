@@ -241,7 +241,7 @@ in {
               PATH=${lib.escapeShellArg (lib.makeBinPath piExtraPackages)}:$PATH \
                 NPM_CONFIG_UPDATE_NOTIFIER=false \
                 ${pkgs.coreutils}/bin/timeout --signal=TERM --kill-after=10s 300s \
-                ${lib.getExe config.programs.pi-coding-agent.package} update
+                ${lib.getExe config.programs.pi-coding-agent.package} update --extensions
             fi
           '';
       };
