@@ -64,6 +64,16 @@ without compiling Marksman or installing a separate .NET SDK/runtime. Its Nix
 package runs a version check after installation. Update the release version and
 platform hashes together in `nix/packages/marksman-bin.nix`.
 
+The editor stays on the pinned Neovim nightly. Plugins and Tree-sitter grammars
+come from the same pinned nixpkgs **without** the nightly overlay so their
+package identities match the upstream binary caches. Most plugins are Lua;
+compiled parsers and native plugin components can be downloaded rather than
+rebuilt because a check dependency changed. Nix still assembles the selected
+plugin/parser links locally, and may build a package if its cache entry is
+unavailable from the machine's configured substituters. This does not add or
+trust new caches. `checks.<system>.neovim-cached-plugins` exercises the configured
+nightly with these packages in an isolated home directory.
+
 Neovim's wrapped runtime keeps core editor dependencies separate from optional
 Go, Rust, web, infrastructure, SQL, and document-rendering tool groups. All
 groups remain enabled by default so existing profiles preserve their current
