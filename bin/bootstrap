@@ -13,6 +13,8 @@ profile_file=${DOTFILES_PROFILE_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles
 auth_github=0
 tmp_dir=
 profile_tmp=
+clt_marker=/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+clt_marker_created=0
 determinate_installer_version=3.24.2
 determinate_installer_aarch64_linux_sha256=bc18d8d8ca12f95d219b5978201e15d0049b2e9d8b7c49593f26503c87172145
 determinate_installer_x86_64_linux_sha256=22ed14ee1b24d100d388f1fc245e3062bd5982433d159cffa6dec34c0eb15dab
@@ -124,6 +126,55 @@ resolve_dotfiles_host() {
   esac
 }
 
+has_darwin_command_line_tools() {
+  [ -d "$(/usr/bin/xcode-select --print-path 2>/dev/null)" ] || return 1
+  /usr/bin/xcrun --sdk macosx --find clang >/dev/null 2>&1 || return 1
+  /usr/bin/xcrun --sdk macosx --show-sdk-path >/dev/null 2>&1
+}
+
+install_darwin_command_line_tools() {
+  if [ -d /Library/Developer/CommandLineTools ]; then
+    log 'Selecting the installed Apple Command Line Tools'
+    sudo /usr/bin/xcode-select --switch /Library/Developer/CommandLineTools || \
+      fail 'could not select the installed Apple Command Line Tools'
+    has_darwin_command_line_tools && return
+  fi
+
+  if [ ! -e "$clt_marker" ] && [ ! -L "$clt_marker" ]; then
+    (umask 077; set -C; : >"$clt_marker") || fail 'could not request the Apple Command Line Tools update'
+    clt_marker_created=1
+  fi
+
+  log 'Finding the Apple Command Line Tools update'
+  available_updates=$(/usr/sbin/softwareupdate --list 2>&1) || \
+    fail 'could not list available Apple software updates'
+  clt_label=$(printf '%s\n' "$available_updates" | awk '
+    /^[[:space:]]*\* Label: Command Line Tools for Xcode/ {
+      sub(/^[[:space:]]*\* Label: /, "")
+      label = $0
+    }
+    /^[[:space:]]*\* Command Line Tools for Xcode/ {
+      sub(/^[[:space:]]*\* /, "")
+      label = $0
+    }
+    END { print label }
+  ')
+  [ -n "$clt_label" ] || \
+    fail 'no Apple Command Line Tools update is available; run xcode-select --install and rerun bootstrap'
+
+  log "Installing $clt_label (administrator approval required)"
+  sudo /usr/sbin/softwareupdate --install "$clt_label" --agree-to-license --verbose || \
+    fail 'Apple Command Line Tools installation failed'
+  sudo /usr/bin/xcode-select --switch /Library/Developer/CommandLineTools || \
+    fail 'could not select the installed Apple Command Line Tools'
+  has_darwin_command_line_tools || fail 'Apple Command Line Tools are installed but unusable'
+}
+
+ensure_darwin_command_line_tools() {
+  [ "$os" = darwin ] || return
+  has_darwin_command_line_tools || install_darwin_command_line_tools
+}
+
 has_darwin_configuration() {
   wanted_configuration=$1
   while IFS= read -r available_configuration; do
@@ -170,6 +221,7 @@ select_darwin_configuration() {
 cleanup() {
   [ -z "$tmp_dir" ] || rm -rf "$tmp_dir"
   [ -z "$profile_tmp" ] || rm -f "$profile_tmp"
+  [ "$clt_marker_created" -eq 0 ] || rm -f "$clt_marker"
 }
 trap cleanup 0
 
@@ -203,6 +255,7 @@ fi
 
 resolve_dotfiles_system
 resolve_dotfiles_host
+ensure_darwin_command_line_tools
 
 load_nix() {
   command -v nix >/dev/null 2>&1 && return 0

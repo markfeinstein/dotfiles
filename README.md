@@ -170,9 +170,11 @@ output. Use `--host NAME` only to require an exact output.
 
 Bootstrap accepts an existing compatible Nix installation, installs Determinate
 Nix when Nix is absent, and activates the selected nix-darwin or Home Manager
-profile. The macOS package signature is checked against Determinate Systems'
-signing team; Linux uses a versioned installer binary with a pinned SHA-256.
-Bootstrap does not clone the repository or provision credentials. A private
+profile. On macOS it first installs Apple's Command Line Tools through
+`softwareupdate` when no usable developer directory and SDK are available. The
+macOS Nix package signature is checked against Determinate Systems' signing team;
+Linux uses a versioned installer binary with a pinned SHA-256. Bootstrap does not
+clone the repository or provision credentials. A private
 downstream flake can be selected on a fresh machine with `--flake` and accessed
 with an interactively supplied token:
 
