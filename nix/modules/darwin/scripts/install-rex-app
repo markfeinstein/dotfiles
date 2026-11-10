@@ -1,0 +1,134 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+source_app=
+primary_user=
+destination="/Applications/Rex Beta.app"
+bundle_identifier=
+team_identifier=
+transaction_root=
+
+usage() {
+  echo "usage: install-rex-app --source-app PATH --primary-user USER --bundle-identifier ID --team-identifier ID [--destination PATH]" >&2
+  exit 64
+}
+
+while (($#)); do
+  case "$1" in
+  --source-app)
+    (($# >= 2)) || usage
+    source_app=$2
+    shift 2
+    ;;
+  --primary-user)
+    (($# >= 2)) || usage
+    primary_user=$2
+    shift 2
+    ;;
+  --bundle-identifier)
+    (($# >= 2)) || usage
+    bundle_identifier=$2
+    shift 2
+    ;;
+  --team-identifier)
+    (($# >= 2)) || usage
+    team_identifier=$2
+    shift 2
+    ;;
+  --destination)
+    (($# >= 2)) || usage
+    destination=$2
+    shift 2
+    ;;
+  *) usage ;;
+  esac
+done
+
+[[ $source_app == /* && -n $primary_user && $destination == /* && -n $bundle_identifier && -n $team_identifier ]] || usage
+[[ -d $source_app && ! -L $source_app ]] || {
+  echo "Rex source application is not a directory: $source_app" >&2
+  exit 1
+}
+/usr/bin/id "$primary_user" >/dev/null 2>&1 || {
+  echo "Rex primary user does not exist: $primary_user" >&2
+  exit 1
+}
+primary_group="$(/usr/bin/id -gn "$primary_user")"
+
+requirement="anchor apple generic and identifier \"$bundle_identifier\" and certificate leaf[subject.OU] = \"$team_identifier\""
+
+verify_rex_app() {
+  local candidate=$1 actual_identifier actual_team
+  [[ -d $candidate && ! -L $candidate ]] || return 1
+  /usr/bin/codesign --verify --deep --strict --test-requirement "=$requirement" "$candidate" || return 1
+  /usr/sbin/spctl -a -t execute "$candidate" >/dev/null 2>&1 || return 1
+  actual_identifier="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$candidate/Contents/Info.plist")" || return 1
+  [[ $actual_identifier == "$bundle_identifier" ]] || return 1
+  actual_team="$(/usr/bin/codesign -dv --verbose=4 "$candidate" 2>&1 | /usr/bin/sed -n 's/^TeamIdentifier=//p')" || return 1
+  [[ $actual_team == "$team_identifier" ]]
+}
+
+if [[ -e $destination || -L $destination ]]; then
+  if verify_rex_app "$destination"; then
+    echo "Rex is already installed with the expected identity" >&2
+    printf 'no-op\n'
+    exit 0
+  fi
+  echo "refusing to replace unverified Rex application at $destination" >&2
+  exit 1
+fi
+
+verify_rex_app "$source_app" || {
+  echo "Rex source application failed signature or identity verification" >&2
+  exit 1
+}
+
+destination_parent="$(/usr/bin/dirname "$destination")"
+[[ -d $destination_parent && ! -L $destination_parent ]] || {
+  echo "Rex destination parent is not a directory: $destination_parent" >&2
+  exit 1
+}
+transaction_root="$(/usr/bin/mktemp -d "$destination_parent/.Rex-Beta.app.activation.XXXXXX")"
+candidate="$transaction_root/Rex Beta.app"
+
+cleanup() {
+  status=$?
+  trap - EXIT HUP INT TERM
+  if [[ -n $transaction_root && -d $transaction_root && ! -L $transaction_root ]]; then
+    case "$transaction_root" in
+      "$destination_parent"/.Rex-Beta.app.activation.*)
+        /bin/chmod -R u+w "$transaction_root" 2>/dev/null || true
+        /usr/bin/find "$transaction_root" -depth -delete || status=1
+        ;;
+      *)
+        echo "refusing to clean unexpected Rex transaction path: $transaction_root" >&2
+        status=1
+        ;;
+    esac
+  fi
+  exit "$status"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+/usr/bin/ditto --noacl --noextattr --noqtn --norsrc "$source_app" "$candidate"
+/usr/sbin/chown -R "$primary_user:$primary_group" "$candidate"
+/bin/chmod -R u+w,go-w "$candidate"
+verify_rex_app "$candidate" || {
+  echo "copied Rex application failed signature or identity verification" >&2
+  exit 1
+}
+
+if [[ -e $destination || -L $destination ]]; then
+  echo "refusing concurrent Rex installation at $destination" >&2
+  exit 1
+fi
+/bin/mv "$candidate" "$destination"
+verify_rex_app "$destination" || {
+  echo "installed Rex application failed final verification" >&2
+  exit 1
+}
+printf 'changed\n'

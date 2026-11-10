@@ -5,11 +5,35 @@
   ...
 }: let
   cfg = config.dotfiles.rex;
+  primaryUser = config.system.primaryUser;
+  rexApp = pkgs.rex-app;
+  installRexApp = pkgs.writeShellApplication {
+    name = "install-rex-app";
+    text = lib.removePrefix "#!/usr/bin/env bash\n" (builtins.readFile ./scripts/install-rex-app);
+  };
+  installRexAppArgs = lib.escapeShellArgs [
+    "--source-app"
+    "${rexApp}/Applications/${rexApp.appName}"
+    "--primary-user"
+    primaryUser
+    "--bundle-identifier"
+    rexApp.bundleIdentifier
+    "--team-identifier"
+    rexApp.teamIdentifier
+  ];
 in {
-  options.dotfiles.rex.tailnetEnable = lib.mkOption {
-    type = lib.types.bool;
-    default = config.profile.name == "personal";
-    description = "Whether Rex serves its bundled server on the authenticated tailnet";
+  options.dotfiles.rex = {
+    installApp = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Whether to install the signed Rex application in /Applications";
+    };
+
+    tailnetEnable = lib.mkOption {
+      type = lib.types.bool;
+      default = config.profile.name == "personal";
+      description = "Whether Rex serves its bundled server on the authenticated tailnet";
+    };
   };
 
   config = {
@@ -35,7 +59,19 @@ in {
 
     fonts.packages = [pkgs.nerd-fonts.symbols-only];
 
-    home-manager.users.${config.system.primaryUser}.targets.darwin.defaults."com.superlogical.rex" = {
+    system.activationScripts.preActivation.text = lib.mkIf cfg.installApp (lib.mkBefore ''
+      if [ -n "''${DRY_RUN_CMD:-}" ]; then
+        echo "Would install the signed Rex application in /Applications"
+      else
+        rex_app_install_result="$(${lib.getExe installRexApp} ${installRexAppArgs})"
+        case "$rex_app_install_result" in
+          no-op|changed) ;;
+          *) echo "unexpected Rex application installation result: $rex_app_install_result" >&2; exit 1 ;;
+        esac
+      fi
+    '');
+
+    home-manager.users.${primaryUser}.targets.darwin.defaults."com.superlogical.rex" = {
       "RexAppUpdateChannel" = "snapshot";
       "RexAppUpdateAutomation" = "install";
       SUAutomaticallyUpdate = true;
