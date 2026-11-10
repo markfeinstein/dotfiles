@@ -1,14 +1,16 @@
 {
   config,
   lib,
-  pkgs,
+  yabaiInput,
   ...
 }: let
-  activationHelpers = import ./activation-helpers.nix {inherit config;};
   primaryUser = config.system.primaryUser;
-  primaryHome = config.profile.user.homeDirectory;
-  appPath = "/Applications/Yabai.app";
-  executablePath = "${appPath}/Contents/MacOS/yabai";
+  nightlyPin = builtins.fromJSON (builtins.readFile "${yabaiInput}/nix/nightly.json");
+  nightlyAvailable = builtins.all (value: value != null) [
+    (nightlyPin.tag or null)
+    (nightlyPin.version or null)
+    (nightlyPin.hash or null)
+  ];
   unmanagedRule = label: pattern: {
     inherit label;
     match.app.pattern = pattern;
@@ -252,7 +254,7 @@
       (keyBindingNoRepeat "escape" [] {type = "reload_configuration";})
       (transitionActionBinding "return" [] "default" {
         type = "restart_service";
-        label = "org.nixos.yabai";
+        label = "com.asmvik.yabai";
       })
       (keyBindingNoRepeat "r" [] [
         {
@@ -397,44 +399,30 @@
       ];
   };
   yabaiNativeConfigJson = builtins.toJSON yabaiNativeConfig;
-  yabaiJsonc = pkgs.writeText "yabai.jsonc" yabaiNativeConfigJson;
-  yabaiCompatibilityConfig = ''
-    # Keep an explicit no-op yabairc so yabai never discovers another user file.
-    # Native settings, Space policy, persistent rules, and hotkeys live in yabai.jsonc.
-  '';
-  yabairc = pkgs.writeScript "yabairc" (yabaiCompatibilityConfig + "\n");
-  installYabaiApp = pkgs.writeShellApplication {
-    name = "install-yabai-app";
-    runtimeInputs = [pkgs.coreutils pkgs.python3];
-    text = lib.removePrefix "#!/usr/bin/env bash\n" (builtins.readFile ./scripts/install-yabai-app);
-  };
-  installYabaiAppArgs = lib.escapeShellArgs [
-    "--source-app"
-    "${pkgs.yabaiAppBundle}/Applications/Yabai.app"
-    "--primary-user"
-    primaryUser
-    "--primary-home"
-    primaryHome
-    "--comparator"
-    (toString ./scripts/compare-yabai-macho.py)
-    "--bundle-identifier"
-    pkgs.yabaiAppBundle.bundleIdentifier
-  ];
-  installYabaiAppActivation = ''
-    yabai_app_install_result="$(${lib.getExe installYabaiApp} ${installYabaiAppArgs})"
-    case "$yabai_app_install_result" in
-      no-op) yabai_app_install_changed=0 ;;
-      changed) yabai_app_install_changed=1 ;;
-      *) echo "unexpected Yabai.app installation result: $yabai_app_install_result" >&2; exit 1 ;;
-    esac
-  '';
 in {
   options.dotfiles.yabai = {
+    installSource = lib.mkOption {
+      type = lib.types.enum [
+        "nightly"
+        "release"
+      ];
+      default =
+        if nightlyAvailable
+        then "nightly"
+        else "release";
+      description = ''
+        Signed Yabai artifact channel. The default follows the latest verified
+        nightly pinned by the Yabai input and falls back to the signed release
+        until the first nightly is available.
+      '';
+    };
+
     fixedSpaceTargets = lib.mkOption {
       type = lib.types.bool;
       default = false;
       description = "Enable fixed Space 1-9 assignments only on machines with those native Spaces";
     };
+
     applicationRules = lib.mkOption {
       type = lib.types.attrsOf (lib.types.submodule {
         options = {
@@ -450,12 +438,8 @@ in {
       internal = true;
       description = "Native yabai rules contributed by modules that manage the matching applications.";
     };
+
     nativeConfigJson = lib.mkOption {
-      type = lib.types.str;
-      internal = true;
-      default = "";
-    };
-    compatibilityConfig = lib.mkOption {
       type = lib.types.str;
       internal = true;
       default = "";
@@ -463,66 +447,17 @@ in {
   };
 
   config = {
-    dotfiles.yabai = {
-      nativeConfigJson = yabaiNativeConfigJson;
-      compatibilityConfig = yabaiCompatibilityConfig;
-    };
+    dotfiles.yabai.nativeConfigJson = yabaiNativeConfigJson;
+
     home-manager.users.${primaryUser} = {
-      # Keep the user-visible validation/reload path identical to the launchd
-      # argument instead of leaving an unmanaged link from an older generation.
-      xdg.configFile."yabai/yabai.jsonc" = {
-        source = yabaiJsonc;
+      imports = [yabaiInput.homeManagerModules.yabai];
+
+      programs.yabai = {
+        enable = true;
         force = true;
+        install.source = config.dotfiles.yabai.installSource;
+        settings = yabaiNativeConfig;
       };
     };
-
-    # Direct Space switching bypasses Dock's transition pipeline, so preserve
-    # the user's Reduce Motion preference without reintroducing a Space fade.
-    system = {
-      defaults = {
-        universalaccess.reduceMotion = true;
-        CustomUserPreferences."com.apple.Accessibility".ReduceMotionEnabled = true;
-      };
-      activationScripts.userLaunchd.text = lib.mkMerge [
-        (lib.mkBefore installYabaiAppActivation)
-        (lib.mkAfter ''
-          yabai_restart_marker=/var/run/yabai-app-install-restart-required
-          if [ "''${yabai_app_install_changed:-0}" -eq 1 ] ||
-            [ -e "$yabai_restart_marker" ] || [ -L "$yabai_restart_marker" ]; then
-            [ "$yabai_restart_marker" = /var/run/yabai-app-install-restart-required ]
-            [ -f "$yabai_restart_marker" ] && [ ! -L "$yabai_restart_marker" ]
-            [ "$(/usr/bin/stat -f '%u:%g:%OLp' "$yabai_restart_marker")" = 0:0:600 ]
-            if ! ${activationHelpers.asPrimaryUser "/bin/launchctl print \"gui/$(id -u ${primaryUser})/org.nixos.yabai\" >/dev/null 2>&1"}
-            then
-              ${activationHelpers.asPrimaryUser "/bin/launchctl bootstrap \"gui/$(id -u ${primaryUser})\" \"${primaryHome}/Library/LaunchAgents/org.nixos.yabai.plist\""}
-            fi
-            if ${activationHelpers.asPrimaryUser "/bin/launchctl kickstart -k \"gui/$(id -u ${primaryUser})/org.nixos.yabai\""}
-            then
-              /bin/rm -f "$yabai_restart_marker"
-            else
-              kickstart_status=$?
-              echo "yabai kickstart failed; retaining $yabai_restart_marker" >&2
-              exit "$kickstart_status"
-            fi
-          fi
-        '')
-      ];
-    };
-
-    services.yabai = {
-      enable = true;
-      enableScriptingAddition = false;
-      package = pkgs.yabaiAppShim;
-      config = {};
-      extraConfig = yabaiCompatibilityConfig;
-    };
-
-    launchd.user.agents.yabai.serviceConfig.ProgramArguments = lib.mkForce [
-      executablePath
-      "--config-jsonc"
-      "${yabaiJsonc}"
-      "-c"
-      "${yabairc}"
-    ];
   };
 }
