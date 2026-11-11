@@ -14,10 +14,10 @@ darwinConfigurations.m5
 ```
 
 `--host` and `DOTFILES_HOST` select an exact nix-darwin output. Without an
-explicit override, bootstrap uses the macOS LocalHostName and then `hostname -s`
-when a matching host output exists, falling back to the selected `personal` or
-`work` profile output otherwise. The selected configuration must declare the
-selected profile.
+explicit override, bootstrap and rebuild use the macOS LocalHostName and then
+`hostname -s` when a matching host output exists, falling back to the selected
+`personal` or `work` profile output otherwise. The selected configuration must
+declare the selected profile.
 
 Generic `darwinConfigurations.personal` and `.work` outputs provide the fallback
 and remain available for evaluation and composition. Linux continues to use

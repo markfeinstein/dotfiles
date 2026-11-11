@@ -4,6 +4,7 @@ set -euo pipefail
 profile=''
 profile_from_flag=0
 host=''
+host_from_override=0
 flake_override="${DOTFILES_FLAKE:-}"
 personal_flake="${DOTFILES_PERSONAL_FLAKE:-}"
 work_flake="${DOTFILES_WORK_FLAKE:-}"
@@ -44,7 +45,7 @@ Modes:
 
 Selection:
   --profile personal|work  Select and persist a source/profile policy
-  --host NAME              Select a Darwin host output (defaults to LocalHostName)
+  --host NAME              Require an exact Darwin host output
   --flake REF              Override the selected remote flake source
   --remote                 Use a remote flake source
   --local                  Use a local Git checkout
@@ -161,6 +162,7 @@ while (($#)); do
 done
 
 resolve_dotfiles_system
+[[ -z "$host" && -z "${DOTFILES_HOST:-}" ]] || host_from_override=1
 resolve_dotfiles_host
 
 if [[ "$mode" != rollback ]]; then
@@ -261,9 +263,55 @@ fi
 [[ "$mode" != update || "$source_mode" == local ]] || fail 'update requires --local/--repo'
 [[ "$source_mode" != remote || -z "$manual_message" ]] || fail 'remote mode cannot commit'
 
+has_darwin_configuration() {
+  local wanted=$1 available
+  while IFS= read -r available; do
+    [[ "$available" == "$wanted" ]] && return 0
+  done <<<"$darwin_configurations"
+  return 1
+}
+
+select_darwin_configuration() {
+  local host_configuration_profile=''
+  local -a eval_args=(--raw --no-write-lock-file)
+  [[ "$source_mode" != remote ]] || eval_args+=(--refresh)
+
+  darwin_configurations=$(
+    nix eval "${eval_args[@]}" "${source_ref}#darwinConfigurations" \
+      --apply 'configs: builtins.concatStringsSep "\n" (builtins.attrNames configs)'
+  ) || fail 'could not list nix-darwin configurations'
+
+  if has_darwin_configuration "$host"; then
+    host_configuration_profile=$(
+      nix eval "${eval_args[@]}" \
+        "${source_ref}#darwinConfigurations.\"${host}\".config.profile.name"
+    ) || fail "could not evaluate darwinConfigurations.$host profile"
+    if [[ "$host_configuration_profile" == "$profile" ]]; then
+      config=$host
+      return
+    fi
+    if ((host_from_override)); then
+      fail "darwinConfigurations.$host selects the '$host_configuration_profile' profile, not '$profile'"
+    fi
+  elif ((host_from_override)); then
+    fail "flake does not export darwinConfigurations.$host"
+  fi
+
+  if has_darwin_configuration "$profile"; then
+    config=$profile
+    if [[ -n "$host_configuration_profile" ]]; then
+      log "Host '$host' selects the '$host_configuration_profile' profile; using the '$profile' profile configuration"
+    else
+      log "No configuration for host '$host'; using the '$profile' profile configuration"
+    fi
+  else
+    fail "flake does not export a '$profile' configuration for host '$host' or profile fallback"
+  fi
+}
+
 if [[ "$os" == darwin ]]; then
-  config=$host
-  attr="darwinConfigurations.\"$host\""
+  select_darwin_configuration
+  attr="darwinConfigurations.\"$config\""
   target="${source_ref}#${attr}.config.system.build.toplevel"
 else
   config="${system}-${profile}"
