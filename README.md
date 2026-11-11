@@ -51,11 +51,16 @@ flake:
 export DOTFILES_WORK_FLAKE='github:OWNER/work-dotfiles/main'
 ```
 
-`DOTFILES_FLAKE` or `--flake` overrides the selected profile source for one run.
-The selected profile is persisted in `~/.config/dotfiles/profile` when chosen
-interactively or with `--profile`; `DOTFILES_PROFILE` remains a temporary
-override. Host selection is never persisted because it is derived from the
-machine unless explicitly overridden.
+`DOTFILES_FLAKE` remains a temporary source override. After `rebuild --flake`
+successfully validates the selected configuration and account identity, rebuild
+persists that profile's source under `~/.config/dotfiles/sources/`; later bare
+invocations reuse it. A persisted local `path:` source that is a Git repository
+is treated as a local checkout, so bare `rebuild` updates and commits its lock
+file before activation. Bootstrap's `--flake` remains a one-run override. The
+selected profile is persisted in `~/.config/dotfiles/profile` when chosen
+interactively or with `--profile`; `DOTFILES_PROFILE` remains temporary. Host
+selection is never persisted because it is derived from the machine unless
+explicitly overridden.
 
 ## Neovim tooling groups
 
@@ -214,9 +219,10 @@ curl -fsSL https://raw.githubusercontent.com/markfeinstein/dotfiles/main/bin/boo
 ## Repository safety
 
 Local build outputs, editor artifacts, environment files, and common credential
-files are excluded by `.gitignore`. Gitleaks extends its default rule set through
-`.gitleaks.toml`; `rebuild update` and `rebuild switch` scan staged content before
-committing it.
+files are excluded by `.gitignore`. This repository extends Gitleaks' default
+rule set through `.gitleaks.toml`; downstream repositories without that file use
+the default Gitleaks policy. `rebuild update` and `rebuild switch` scan staged
+content before committing it.
 
 Scan the complete reachable history manually with:
 
@@ -241,5 +247,7 @@ From a checkout:
 
 The explicit `--host m5` is optional on that machine because LocalHostName is
 `m5`. `update` may stage, format, build, and commit managed changes but does not
-activate them. `switch` additionally activates the exact built output and can
-change native applications, macOS policy, services, and other runtime state.
+activate them. Partially staged managed files, including `flake.lock`, are
+promoted to their complete working-tree state before the review prompt.
+`switch` additionally activates the exact built output and can change native
+applications, macOS policy, services, and other runtime state.
