@@ -8,7 +8,10 @@
   primaryUser = config.system.primaryUser;
   orcaSlicerCask = "orcaslicer@nightly";
   orcaSlicerBaseCask = builtins.head (lib.splitString "@" orcaSlicerCask);
-  commonCasks = ["alfred"];
+  commonCasks = [
+    "alfred"
+    "tailscale-app"
+  ];
   applicationCasks = [
     "bartender"
     "discord"
