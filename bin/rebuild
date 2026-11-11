@@ -507,15 +507,15 @@ managed_path() {
 }
 
 check_index_safety() {
-  local path common
+  local path
   if ((!stage_all)); then
     while IFS= read -r -d '' path; do
       managed_path "$path" || fail "staged file is outside managed paths: $path (use --stage-all)"
     done < <(git diff --cached --name-only -z)
   fi
-  common=$(comm -12 <(git diff --cached --name-only | LC_ALL=C sort) \
-                     <(git diff --name-only | LC_ALL=C sort))
-  [[ -z "$common" ]] || fail "partially staged files detected: $common"
+  # stage_changes intentionally promotes managed files to their complete working
+  # tree state before review, including a partially staged flake.lock left by a
+  # previous interrupted update.
 }
 
 stage_changes() {

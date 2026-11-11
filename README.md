@@ -247,5 +247,7 @@ From a checkout:
 
 The explicit `--host m5` is optional on that machine because LocalHostName is
 `m5`. `update` may stage, format, build, and commit managed changes but does not
-activate them. `switch` additionally activates the exact built output and can
-change native applications, macOS policy, services, and other runtime state.
+activate them. Partially staged managed files, including `flake.lock`, are
+promoted to their complete working-tree state before the review prompt.
+`switch` additionally activates the exact built output and can change native
+applications, macOS policy, services, and other runtime state.
