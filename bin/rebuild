@@ -6,9 +6,13 @@ profile_from_flag=0
 host=''
 host_from_override=0
 flake_override="${DOTFILES_FLAKE:-}"
+flake_from_flag=0
 personal_flake="${DOTFILES_PERSONAL_FLAKE:-}"
 work_flake="${DOTFILES_WORK_FLAKE:-}"
 profile_file="${DOTFILES_PROFILE_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles/profile}"
+source_dir="${DOTFILES_SOURCE_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles/sources}"
+source_file=''
+persisted_flake=''
 repo="${DOTFILES_REPO:-}"
 source_mode=auto
 mode=switch
@@ -28,6 +32,7 @@ start_time=$(date +%s)
 lock_dir=''
 tmp_dir=''
 profile_tmp=''
+source_tmp=''
 activated=no
 committed=no
 
@@ -46,7 +51,7 @@ Modes:
 Selection:
   --profile personal|work  Select and persist a source/profile policy
   --host NAME              Require an exact Darwin host output
-  --flake REF              Override the selected remote flake source
+  --flake REF              Select and persist the profile's remote flake source
   --remote                 Use a remote flake source
   --local                  Use a local Git checkout
   --repo PATH              Local repository path (implies --local)
@@ -74,11 +79,11 @@ Darwin host precedence:
 
 Remote source precedence:
   --flake or DOTFILES_FLAKE, then DOTFILES_PERSONAL_FLAKE or
-  DOTFILES_WORK_FLAKE for the selected profile
+  DOTFILES_WORK_FLAKE, then the selected profile's persisted source
 
 Environment:
-  DOTFILES_PROFILE, DOTFILES_PROFILE_FILE, DOTFILES_HOST, DOTFILES_FLAKE
-  DOTFILES_PERSONAL_FLAKE, DOTFILES_WORK_FLAKE, DOTFILES_REPO
+  DOTFILES_PROFILE, DOTFILES_PROFILE_FILE, DOTFILES_SOURCE_DIR, DOTFILES_HOST,
+  DOTFILES_FLAKE, DOTFILES_PERSONAL_FLAKE, DOTFILES_WORK_FLAKE, DOTFILES_REPO
 HELP
 }
 
@@ -106,6 +111,7 @@ cleanup() {
   [[ -z "$lock_dir" ]] || rm -rf -- "$lock_dir"
   [[ -z "$tmp_dir" ]] || rm -rf -- "$tmp_dir"
   [[ -z "$profile_tmp" ]] || rm -f -- "$profile_tmp"
+  [[ -z "$source_tmp" ]] || rm -f -- "$source_tmp"
   if ((status != 0)); then
     printf '\nrebuild failed (exit %s). Files and staged changes were preserved.\n' "$status" >&2
     [[ "$committed" == yes ]] && printf 'Git commit exists; activation may not have completed.\n' >&2
@@ -113,6 +119,27 @@ cleanup() {
   printf 'Result: %s | commit: %s | activated: %s | elapsed: %ss\n' \
     "$mode" "$committed" "$activated" "$(( $(date +%s) - start_time ))"
   exit "$status"
+}
+
+persist_dotfiles_source() {
+  ((flake_from_flag)) || return 0
+  [[ -n "$source_file" && -n "$source_ref" ]] || fail 'cannot persist an empty flake source'
+  [[ "$source_ref" != *$'\n'* && "$source_ref" != *$'\r'* ]] || fail 'flake source contains a line break'
+  umask 077
+  mkdir -p "$source_dir" || fail "could not create source directory: $source_dir"
+  source_tmp=$(mktemp "$source_dir/$profile.tmp.XXXXXX") || fail 'could not create source temp file'
+  printf '%s\n' "$source_ref" >"$source_tmp"
+  chmod 600 "$source_tmp"
+  mv -f "$source_tmp" "$source_file"
+  source_tmp=''
+}
+
+load_dotfiles_source() {
+  [[ -e "$source_file" ]] || return 0
+  [[ -r "$source_file" && -f "$source_file" ]] || fail "persisted flake source is not a readable file: $source_file"
+  IFS= read -r persisted_flake <"$source_file" || fail "could not read persisted flake source: $source_file"
+  [[ -n "$persisted_flake" ]] || fail "persisted flake source is empty: $source_file"
+  [[ -z "$(tail -n +2 "$source_file")" ]] || fail "persisted flake source has multiple lines: $source_file"
 }
 trap cleanup EXIT
 trap 'exit 130' INT
@@ -132,7 +159,7 @@ while (($#)); do
       case "$1" in
         --profile) profile=$2; profile_from_flag=1 ;;
         --host) host=$2 ;;
-        --flake) flake_override=$2 ;;
+        --flake) flake_override=$2; flake_from_flag=1 ;;
         --repo) repo=$2; source_mode=local ;;
         --input) input_updates+=("$2") ;;
         --commit-message) manual_message=$2 ;;
@@ -140,7 +167,7 @@ while (($#)); do
       shift 2 ;;
     --profile=*) profile=${1#*=}; profile_from_flag=1; shift ;;
     --host=*) host=${1#*=}; shift ;;
-    --flake=*) flake_override=${1#*=}; shift ;;
+    --flake=*) flake_override=${1#*=}; flake_from_flag=1; shift ;;
     --repo=*) repo=${1#*=}; source_mode=local; shift ;;
     --input=*) input_updates+=("${1#*=}"); shift ;;
     --commit-message=*) manual_message=${1#*=}; shift ;;
@@ -167,6 +194,8 @@ resolve_dotfiles_host
 
 if [[ "$mode" != rollback ]]; then
   select_dotfiles_profile
+  source_file="$source_dir/$profile"
+  load_dotfiles_source
 elif [[ -n "$profile" || -n "${DOTFILES_PROFILE:-}" ]]; then
   select_dotfiles_profile
 fi
@@ -220,10 +249,37 @@ if [[ "$mode" == rollback ]]; then
   exit 0
 fi
 
+if [[ "$profile" == personal ]]; then
+  selected_profile_flake=$personal_flake
+  profile_flake_variable=DOTFILES_PERSONAL_FLAKE
+else
+  selected_profile_flake=$work_flake
+  profile_flake_variable=DOTFILES_WORK_FLAKE
+fi
+
+persisted_repo=''
+if [[ "$source_mode" == auto && -z "$repo" && -z "$flake_override" && -z "$selected_profile_flake" ]]; then
+  case "$persisted_flake" in
+    path:/*) persisted_repo=${persisted_flake#path:} ;;
+    /*) persisted_repo=$persisted_flake ;;
+  esac
+  if [[ -n "$persisted_repo" && -d "$persisted_repo" && -f "$persisted_repo/flake.nix" ]] \
+    && command -v git >/dev/null 2>&1; then
+    persisted_repo=$(cd -P "$persisted_repo" && pwd -P)
+    [[ "$(git -C "$persisted_repo" rev-parse --show-toplevel 2>/dev/null || true)" == "$persisted_repo" ]] \
+      || persisted_repo=''
+  else
+    persisted_repo=''
+  fi
+fi
+
 if [[ "$source_mode" == auto && -z "$repo" && -f "$script_dir/../flake.nix" ]]; then
   repo=$(cd -P "$script_dir/.." && pwd -P)
   source_mode=local
 elif [[ "$source_mode" == auto && -n "$repo" ]]; then
+  source_mode=local
+elif [[ "$source_mode" == auto && -n "$persisted_repo" ]]; then
+  repo=$persisted_repo
   source_mode=local
 elif [[ "$source_mode" == auto ]]; then
   source_mode=remote
@@ -242,15 +298,8 @@ if [[ "$source_mode" == local ]]; then
   source_ref=$repo
 else
   source_ref=$flake_override
-  if [[ -z "$source_ref" && -n "$profile" ]]; then
-    if [[ "$profile" == personal ]]; then
-      source_ref=$personal_flake
-      profile_flake_variable=DOTFILES_PERSONAL_FLAKE
-    else
-      source_ref=$work_flake
-      profile_flake_variable=DOTFILES_WORK_FLAKE
-    fi
-  fi
+  [[ -n "$source_ref" ]] || source_ref=$selected_profile_flake
+  [[ -n "$source_ref" ]] || source_ref=$persisted_flake
   if [[ -z "$source_ref" ]]; then
     if [[ -n "$profile" ]]; then
       fail "$profile flake unknown: set $profile_flake_variable or pass --flake"
@@ -337,6 +386,7 @@ validate_identity() {
     fail "configuration profile '$selected_profile' does not match selected profile '$profile'"
   [[ "$user" == "$(id -un)" && "$home" == "$HOME" ]] ||
     fail "profile identity ($user, $home) does not match current account ($(id -un), $HOME)"
+  persist_dotfiles_source
 }
 
 build_configuration() {

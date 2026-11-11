@@ -51,11 +51,16 @@ flake:
 export DOTFILES_WORK_FLAKE='github:OWNER/work-dotfiles/main'
 ```
 
-`DOTFILES_FLAKE` or `--flake` overrides the selected profile source for one run.
-The selected profile is persisted in `~/.config/dotfiles/profile` when chosen
-interactively or with `--profile`; `DOTFILES_PROFILE` remains a temporary
-override. Host selection is never persisted because it is derived from the
-machine unless explicitly overridden.
+`DOTFILES_FLAKE` remains a temporary source override. After `rebuild --flake`
+successfully validates the selected configuration and account identity, rebuild
+persists that profile's source under `~/.config/dotfiles/sources/`; later bare
+invocations reuse it. A persisted local `path:` source that is a Git repository
+is treated as a local checkout, so bare `rebuild` updates and commits its lock
+file before activation. Bootstrap's `--flake` remains a one-run override. The
+selected profile is persisted in `~/.config/dotfiles/profile` when chosen
+interactively or with `--profile`; `DOTFILES_PROFILE` remains temporary. Host
+selection is never persisted because it is derived from the machine unless
+explicitly overridden.
 
 ## Neovim tooling groups
 
