@@ -8,8 +8,8 @@
   primaryUser = config.system.primaryUser;
   orcaSlicerCask = "orcaslicer@nightly";
   orcaSlicerBaseCask = builtins.head (lib.splitString "@" orcaSlicerCask);
+  commonCasks = ["alfred"];
   applicationCasks = [
-    "alfred"
     "bartender"
     "discord"
     "libation"
@@ -56,7 +56,8 @@ in {
       enableZshIntegration = true;
       brews = [];
       casks =
-        lib.optionals cfg.applications.enable applicationCasks
+        commonCasks
+        ++ lib.optionals cfg.applications.enable applicationCasks
         ++ lib.optionals cfg.printing.enable printingCasks
         ++ lib.optional config.dotfiles.openlogi.enable "openlogi";
       masApps = lib.mkIf config.dotfiles.masApps.enable {
