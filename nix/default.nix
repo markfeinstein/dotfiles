@@ -95,7 +95,11 @@
   darwinPersonal = mkDarwinProfile "personal" homePersonal;
   darwinWork = {
     imports = [(mkDarwinProfile "work" homeWork)];
-    dotfiles.yabai.fixedSpaceTargets = true;
+    dotfiles = {
+      openlogi.enable = true;
+      rex.tailnetEnable = true;
+      yabai.fixedSpaceTargets = true;
+    };
   };
   darwinHosts = {
     m5 = ./hosts/m5.nix;
