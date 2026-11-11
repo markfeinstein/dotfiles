@@ -58,9 +58,7 @@
 
   instructionsFile = agentsRoot + "/global-instructions.md";
 
-  powerlinePackageSource = "git:github.com/markfeinstein/pi-powerline-footer@54aed05107c85cf9421628a981da07ac858a0195";
   commonPackageSpecs = [
-    powerlinePackageSource
     "npm:@aliou/pi-guardrails"
     "npm:@juicesharp/rpiv-ask-user-question"
     "npm:@juicesharp/rpiv-todo"
@@ -87,7 +85,7 @@
   roseThemes = lib.genAttrs rosePineVariants (
     variant: import ../../lib/pi-rose-theme.nix {inherit variant;}
   );
-  baseSettings = import ./pi/settings.nix {inherit lib pkgs;};
+  baseSettings = import ./pi/settings.nix {inherit pkgs;};
 
   piSettings = lib.recursiveUpdate (lib.recursiveUpdate baseSettings cfg.settings) {
     packages = packageSpecs;
@@ -172,9 +170,6 @@ in {
           ".pi/agent/themes/rose-pine.json".text = builtins.toJSON roseThemes."rose-pine";
           ".pi/agent/themes/rose-pine-moon.json".text = builtins.toJSON roseThemes."rose-pine-moon";
           ".pi/agent/themes/rose-pine-dawn.json".text = builtins.toJSON roseThemes."rose-pine-dawn";
-          ".pi/agent/extensions/powerline-footer/theme.json".text = builtins.toJSON {
-            icons.branch = "󰘬";
-          };
           ".pi/agent/extensions/mcp-permissions.ts".source =
             agentsRoot + "/extensions/mcp-permissions.ts";
           ".pi/agent/extensions/mcp-permissions.json".source = mcpPermissionConfig;
