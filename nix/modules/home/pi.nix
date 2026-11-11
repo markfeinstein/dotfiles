@@ -64,6 +64,7 @@
     "npm:@aliou/pi-guardrails"
     "npm:@juicesharp/rpiv-ask-user-question"
     "npm:@juicesharp/rpiv-todo"
+    "git:github.com/earendil-works/pi-claude-code"
     "npm:pi-intercom"
     "npm:pi-sessions"
     "npm:pi-subagents"
@@ -71,6 +72,7 @@
   ];
   packageSpecs = commonPackageSpecs ++ cfg.packageSpecs;
   commonExtraPackages = [
+    pkgs.claude-code
     pkgs.nodejs
     pkgs.bun
     pkgs.git
