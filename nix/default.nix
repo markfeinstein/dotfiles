@@ -92,7 +92,10 @@
   };
 
   darwinPersonal = mkDarwinProfile "personal" homePersonal;
-  darwinWork = mkDarwinProfile "work" homeWork;
+  darwinWork = {
+    imports = [(mkDarwinProfile "work" homeWork)];
+    dotfiles.yabai.fixedSpaceTargets = true;
+  };
   darwinHosts = {
     m5 = ./hosts/m5.nix;
   };

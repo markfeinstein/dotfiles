@@ -8,16 +8,19 @@
   primaryUser = config.system.primaryUser;
   orcaSlicerCask = "orcaslicer@nightly";
   orcaSlicerBaseCask = builtins.head (lib.splitString "@" orcaSlicerCask);
-  applicationCasks = [
+  commonCasks = [
     "alfred"
+    "obsidian"
+  ];
+  applicationCasks = [
     "bartender"
+    "tailscale-app"
     "discord"
     "libation"
     {
       name = "navigator";
       greedy = true;
     }
-    "obsidian"
     "raspberry-pi-imager"
     {
       name = "1password";
@@ -56,7 +59,8 @@ in {
       enableZshIntegration = true;
       brews = [];
       casks =
-        lib.optionals cfg.applications.enable applicationCasks
+        commonCasks
+        ++ lib.optionals cfg.applications.enable applicationCasks
         ++ lib.optionals cfg.printing.enable printingCasks
         ++ lib.optional config.dotfiles.openlogi.enable "openlogi";
       masApps = lib.mkIf config.dotfiles.masApps.enable {

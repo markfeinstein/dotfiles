@@ -98,9 +98,9 @@ login name from `nix/modules/profile.nix`. Bootstrap verifies that the
 selected output matches the current account, so forks should override
 `profile.user` before using those outputs on another account.
 
-The `m5` host enables the fixed Space 1-9 Yabai assignments. The native
-configuration is intentionally strict, so provision nine ordinary macOS Spaces
-before activating a host that enables fixed targets.
+The `m5` host and generic work Darwin profile enable the fixed Space 1-9 Yabai
+assignments. The native configuration is intentionally strict, so provision nine
+ordinary macOS Spaces before activating a configuration with fixed targets.
 
 Yabai uses the signed artifact metadata pinned by its flake input. It follows the
 latest verified nightly when one is available and falls back to the latest
