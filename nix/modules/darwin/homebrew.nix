@@ -8,7 +8,10 @@
   primaryUser = config.system.primaryUser;
   orcaSlicerCask = "orcaslicer@nightly";
   orcaSlicerBaseCask = builtins.head (lib.splitString "@" orcaSlicerCask);
-  commonCasks = ["alfred"];
+  commonCasks = [
+    "alfred"
+    "obsidian"
+  ];
   applicationCasks = [
     "bartender"
     "tailscale-app"
@@ -18,7 +21,6 @@
       name = "navigator";
       greedy = true;
     }
-    "obsidian"
     "raspberry-pi-imager"
     {
       name = "1password";
