@@ -15,6 +15,7 @@ in {
   home.packages = [
     pkgs._1password-cli
     pkgs.actionlint
+    pkgs.claude-code
     pkgs.markdownlint-cli
     pkgs.openssl
     pkgs.tokei

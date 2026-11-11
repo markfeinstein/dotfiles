@@ -33,6 +33,7 @@
   nixpkgsConfig.allowUnfreePredicate = package:
     builtins.elem (lib.getName package) [
       "1password-cli"
+      "claude-code"
       "copilot-language-server"
       "rex-app"
       "terraform"
