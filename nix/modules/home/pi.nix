@@ -64,6 +64,7 @@
     "npm:@aliou/pi-guardrails"
     "npm:@juicesharp/rpiv-ask-user-question"
     "npm:@juicesharp/rpiv-todo"
+    "npm:pi-claude-code"
     "npm:pi-intercom"
     "npm:pi-sessions"
     "npm:pi-subagents"
