@@ -1,4 +1,22 @@
-{pkgs}: {
+{
+  lib,
+  pkgs,
+}: let
+  powerlinePillColors = {
+    token_in = "terminal:bright-blue";
+    token_out = "terminal:bright-blue";
+    context_pct = "terminal:bright-blue";
+    cost = "terminal:bright-yellow";
+    model = "terminal:bright-magenta";
+    thinking = "terminal:bright-cyan";
+    path = "terminal:bright-blue";
+    git = "terminal:bright-cyan";
+    gitClean = "terminal:bright-green";
+    gitDirty = "terminal:bright-red";
+    shell_mode = "terminal:bright-green";
+    queue = "terminal:bright-yellow";
+  };
+in {
   defaultProvider = "github-copilot";
   defaultModel = "gpt-5.6-sol";
   defaultThinkingLevel = "high";
@@ -58,6 +76,58 @@
   compaction.modelOverrides."github-copilot/gpt-5.6-sol".reserveTokens = 450000;
 
   branchSummary.skipPrompt = true;
+
+  powerline = {
+    preset = "default";
+    placement = "below";
+    layout = {
+      left = [
+        "path"
+        "git"
+        "model"
+        "thinking"
+        "shell_mode"
+      ];
+      right = [
+        "token_in"
+        "token_out"
+        "context_pct"
+        "cost"
+        "queue"
+      ];
+      secondary = ["extension_statuses"];
+    };
+    secondaryOverflow = "drop";
+    path.mode = "basename";
+    git.polling = "full";
+    git.statusTtlMs = 15000;
+    model.showThinkingLevel = false;
+    context.format = "tokens";
+    cost.subscriptionDisplay = "reported-cost";
+    pills = true;
+    nerdFonts = true;
+    bold = true;
+    alwaysShowTokens = true;
+    pillBackground = "terminal:background";
+    pillForeground = "terminal:foreground";
+    pillGroups = [
+      [
+        "token_in"
+        "token_out"
+        "context_pct"
+      ]
+      [
+        "model"
+        "thinking"
+      ]
+      [
+        "path"
+        "git"
+      ]
+    ];
+    pillColors = powerlinePillColors;
+    pillTextColors = lib.mapAttrs (_: _: "terminal:black") powerlinePillColors;
+  };
 
   sessions = {
     index.dir = "~/.pi/agent/pi-sessions";
