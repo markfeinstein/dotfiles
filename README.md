@@ -219,9 +219,10 @@ curl -fsSL https://raw.githubusercontent.com/markfeinstein/dotfiles/main/bin/boo
 ## Repository safety
 
 Local build outputs, editor artifacts, environment files, and common credential
-files are excluded by `.gitignore`. Gitleaks extends its default rule set through
-`.gitleaks.toml`; `rebuild update` and `rebuild switch` scan staged content before
-committing it.
+files are excluded by `.gitignore`. This repository extends Gitleaks' default
+rule set through `.gitleaks.toml`; downstream repositories without that file use
+the default Gitleaks policy. `rebuild update` and `rebuild switch` scan staged
+content before committing it.
 
 Scan the complete reachable history manually with:
 

@@ -562,7 +562,19 @@ scan_index() {
   ((scan_secrets)) || return 0
   local gitleaks config
   config="$repo/.gitleaks.toml"
-  [[ -r "$config" ]] || fail "Gitleaks configuration is unavailable: $config"
+  if [[ -e "$config" || -L "$config" ]]; then
+    [[ -r "$config" && -f "$config" ]] || fail "Gitleaks configuration is not a readable file: $config"
+  else
+    config="$tmp_dir/gitleaks-default.toml"
+    if [[ ! -f "$config" ]]; then
+      cat >"$config" <<'EOF'
+title = "Default rebuild secret scanning policy"
+
+[extend]
+useDefault = true
+EOF
+    fi
+  fi
   gitleaks=$(tool_path gitleaks) || fail 'Gitleaks unavailable (or pass --no-secret-scan)'
   "$gitleaks" git --staged --config "$config" --redact --exit-code 1 . \
     || fail 'secrets detected or Gitleaks failed'
