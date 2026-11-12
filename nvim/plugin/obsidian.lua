@@ -189,22 +189,22 @@ local function get_obsidian_config()
 		legacy_commands = false,
 		workspaces = vault_workspaces,
 		daily_notes = {
-			folder = "1 - Journals",
-			date_format = "%Y/%m-%B/%Y-%m-%d-%A",
+			folder = "Journal/Daily",
+			date_format = "%Y-%m-%d",
 			alias_format = "%B %-d, %Y",
-			template = "Journal Templates/Daily Template.md",
+			template = "Daily Note.md",
 		},
 		completion = {
 			min_chars = 1,
 			match_case = false,
 		},
-		notes_subdir = "0 - Inbox",
+		notes_subdir = "Inbox",
 
 		note_id_func = function(title)
 			return title
 		end,
 		templates = {
-			folder = "8 - Templates",
+			folder = "Resources/Templates",
 		},
 		checkbox = {
 			order = {

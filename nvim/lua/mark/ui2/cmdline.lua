@@ -192,6 +192,8 @@ function M.setup(context)
 		confirm_active = false,
 		confirm_question = nil,
 		confirm_buttons = nil,
+		input_prompt_active = false,
+		input_text = "",
 	}
 	local cmdline_search_counter = search_count.new_counter()
 
@@ -243,12 +245,22 @@ function M.setup(context)
 		local orig_show = cmdmod._mark_orig_cmdline_show
 		local orig_pos = cmdmod._mark_orig_cmdline_pos
 
-		-- Wrap cmdline_pos to correct cursor positioning when prefix is stripped
+		-- Wrap cmdline_pos to correct cursor positioning when buffer text differs
+		-- from UI2's stored prompt/cmdline representation.
 		cmdmod.cmdline_pos = function(pos)
+			local win = ui2.wins and ui2.wins.cmd
+			if cmdline_state.input_prompt_active then
+				if not win or not api.nvim_win_is_valid(win) then
+					return
+				end
+				local input_before_cursor = cmdline_state.input_text:sub(1, pos)
+				local translated_pos = #vim.fn.strtrans(input_before_cursor)
+				pcall(api.nvim_win_set_cursor, win, { 1, translated_pos })
+				return
+			end
 			if cmdline_state.prefix_offset > 0 then
 				-- Buffer content was modified by strip_cmd_prefix, so upstream's
 				-- cmdbuff/promptlen are stale. Compute adjusted cursor position directly.
-				local win = ui2.wins and ui2.wins.cmd
 				if not win or not api.nvim_win_is_valid(win) then
 					return
 				end
@@ -272,6 +284,21 @@ function M.setup(context)
 				return cmdline_state.cached_width, cmdline_state.cached_row, cmdline_state.cached_col, true
 			end
 			return cmdline_state.cached_width, cmdline_state.cached_row, cmdline_state.cached_col, false
+		end
+
+		local function save_cmd_win_config(win)
+			if cmdline_state.cmd_win_saved then
+				return
+			end
+			local cfg = api.nvim_win_get_config(win)
+			cmdline_state.cmd_win_saved = {
+				relative = cfg.relative,
+				anchor = cfg.anchor,
+				col = cfg.col,
+				row = cfg.row,
+				width = cfg.width,
+				border = cfg.border,
+			}
 		end
 
 		-- Helper to strip command prefixes from buffer (help, lua, etc.)
@@ -331,8 +358,10 @@ function M.setup(context)
 				pcall(api.nvim_win_set_config, win, { hide = false })
 			end
 
-			-- Reset prefix offset for new cmdline content
+			-- Reset body/cursor adjustments for new cmdline content.
 			cmdline_state.prefix_offset = 0
+			cmdline_state.input_prompt_active = false
+			cmdline_state.input_text = ""
 
 			-- Reset confirm state when entering a non-confirm cmdline
 			if firstc ~= "" or prompt == "" then
@@ -356,6 +385,7 @@ function M.setup(context)
 			-- Determine styling based on firstc and content
 			local border_hl, title, icon, icon_hl
 			local display_text = text
+			local input_prompt = false
 			local substitute_count_pattern = firstc == ":" and search_count.substitute_pattern(text) or nil
 
 			if firstc == "/" then
@@ -385,13 +415,20 @@ function M.setup(context)
 					pending_confirm_text = nil
 					return
 				else
-					display_text = prompt .. text
-					-- Keep the upstream prompt + editable value in the buffer so
-					-- vim.ui.input() defaults and typed text remain visible. A generic
-					-- title avoids showing the prompt twice while preserving upstream
-					-- cursor math, which is based on the prompt still being in the body.
+					input_prompt = true
 					border_hl = "DiagnosticSignInfo"
-					title, icon, icon_hl = " Input ", icons.keyboard, "DiagnosticSignInfo"
+					title, icon, icon_hl = " " .. vim.trim(prompt) .. " ", icons.keyboard, "DiagnosticSignInfo"
+
+					-- UI2 stores the prompt and editable value together. Replacing the
+					-- whole line keeps only the translated value and invalidates UI2's
+					-- shaded prompt extmark. Track the value so later cmdline_pos events
+					-- do not apply UI2's now-stale prompt offset.
+					cmdline_state.input_prompt_active = true
+					cmdline_state.input_text = text
+					local translated_text = vim.fn.strtrans(text)
+					pcall(api.nvim_buf_set_lines, buf, 0, -1, false, { translated_text .. " " })
+					local translated_pos = #vim.fn.strtrans(text:sub(1, pos))
+					pcall(api.nvim_win_set_cursor, win, { 1, translated_pos })
 					-- Deferred confirm upgrade: msg_show is a fast event (always
 					-- deferred via vim.schedule). A vim.schedule from here runs
 					-- AFTER the queued msg_show handler (FIFO ordering), so
@@ -464,15 +501,28 @@ function M.setup(context)
 			-- Calculate centered position; changed flag tells us if position moved
 			local width, row, col, position_changed = calc_position()
 
-			-- Dynamic height: grow for long commands that wrap
-			local content_len = #display_text + 1 -- +1 for icon/space prefix
-			local height = math.max(1, math.ceil(content_len / width))
+			-- Dynamic height: input prompts use the actual wrapped window text on
+			-- every redraw. Other cmdline kinds retain their existing calculation.
+			local height
+			if input_prompt then
+				if api.nvim_win_get_width(win) ~= width then
+					-- Text height uses the current window width. Preserve UI2's original
+					-- geometry before resizing so CmdlineLeave can still restore it.
+					save_cmd_win_config(win)
+					pcall(api.nvim_win_set_width, win, width)
+				end
+				height = math.min(5, math.max(1, api.nvim_win_text_height(win).all))
+			else
+				local content_len = #display_text + 1 -- +1 for icon/space prefix
+				height = math.max(1, math.ceil(content_len / width))
+			end
 
-			-- Tell blink.cmp where the cmdline content starts (1-indexed row, 0-indexed col)
-			-- +3 row: +1 for 0-to-1 indexing, +1 for rounded border top, +1 for visual offset
-			-- +3 col: +1 for rounded border left, +2 for icon space and visual offset
+			-- Tell blink.cmp where the cmdline content starts (1-indexed row, 0-indexed col).
+			-- Input bodies have no icon/prompt prefix, and wrapped input menus belong
+			-- below the complete box. Other cmdline kinds retain their existing offsets.
 			-- Guard: only write vim.g when changed (avoids variable-watch callbacks on every keystroke)
-			local new_r, new_c = row + 3, col + 3
+			local new_r = input_prompt and (row + height + 2) or (row + 3)
+			local new_c = input_prompt and (col + 1) or (col + 3)
 			local cur_pos = vim.g.ui_cmdline_pos
 			if not cur_pos or cur_pos[1] ~= new_r or cur_pos[2] ~= new_c then
 				vim.g.ui_cmdline_pos = { new_r, new_c }
@@ -483,17 +533,7 @@ function M.setup(context)
 				or title ~= cmdline_state.last_title
 				or border_hl ~= cmdline_state.last_border_hl
 			if config_changed then
-				if not cmdline_state.cmd_win_saved then
-					local cfg = api.nvim_win_get_config(win)
-					cmdline_state.cmd_win_saved = {
-						relative = cfg.relative,
-						anchor = cfg.anchor,
-						col = cfg.col,
-						row = cfg.row,
-						width = cfg.width,
-						border = cfg.border,
-					}
-				end
+				save_cmd_win_config(win)
 				local win_cfg = {
 					relative = "editor",
 					border = "rounded",
@@ -640,6 +680,8 @@ function M.setup(context)
 			cmdline_generation = cmdline_generation + 1
 			cmdline_state.source_buf = api.nvim_get_current_buf()
 			cmdline_state.prefix_offset = 0
+			cmdline_state.input_prompt_active = false
+			cmdline_state.input_text = ""
 			cmdline_state.last_title = nil
 			cmdline_state.last_border_hl = nil
 			cmdline_state.last_wh = nil
