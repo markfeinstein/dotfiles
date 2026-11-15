@@ -3,12 +3,15 @@
   lib,
   pkgs,
   ...
-}: let
+}:
+let
   palette = (import ../../../lib/terminal-colors.nix).nushell;
   localNu = "${config.xdg.configHome}/nushell/local.nu";
   colorConfig = {
     separator = palette.muted;
-    leading_trailing_space_bg = {attr = "n";};
+    leading_trailing_space_bg = {
+      attr = "n";
+    };
     header = {
       fg = palette.pine;
       attr = "b";
@@ -39,7 +42,9 @@
     glob = palette.foam;
     block = palette.text;
     hints = palette.muted;
-    search_result = {attr = "r";};
+    search_result = {
+      attr = "r";
+    };
     shape_binary = palette.iris;
     shape_block = palette.foam;
     shape_bool = palette.foam;
@@ -61,7 +66,9 @@
     shape_list = palette.foam;
     shape_literal = palette.text;
     shape_match_pattern = palette.pine;
-    shape_matching_brackets = {attr = "u";};
+    shape_matching_brackets = {
+      attr = "u";
+    };
     shape_nothing = palette.muted;
     shape_operator = palette.gold;
     shape_pipe = palette.iris;
@@ -80,7 +87,8 @@
       attr = "b";
     };
   };
-in {
+in
+{
   home.shell.enableNushellIntegration = true;
 
   programs = {
@@ -104,32 +112,35 @@ in {
         pkgs.nushellPlugins.formats
       ];
 
-      extraConfig =
-        ''
-          $env.config.color_config = ('${builtins.toJSON colorConfig}' | from json)
-          $env.config.history = ('${builtins.toJSON {
+      extraConfig = ''
+        $env.config.color_config = ('${builtins.toJSON colorConfig}' | from json)
+        $env.config.history = ('${
+          builtins.toJSON {
             file_format = "sqlite";
             max_size = 10000;
             sync_on_enter = true;
             isolation = true;
-          }}' | from json)
-          $env.config.shell_integration = ('${builtins.toJSON {
+          }
+        }' | from json)
+        $env.config.shell_integration = ('${
+          builtins.toJSON {
             osc2 = true;
             osc7 = true;
             osc133 = false;
-          }}' | from json)
-        ''
-        + builtins.readFile ./keybindings.nu
-        + ''
-
-          if (${builtins.toJSON localNu} | path exists) {
-            source ${builtins.toJSON localNu}
           }
-        '';
+        }' | from json)
+      ''
+      + builtins.readFile ./keybindings.nu
+      + ''
+
+        if (${builtins.toJSON localNu} | path exists) {
+          source ${builtins.toJSON localNu}
+        }
+      '';
     };
   };
 
-  home.activation.ensureNushellLocal = lib.hm.dag.entryAfter ["writeBoundary"] ''
+  home.activation.ensureNushellLocal = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     $DRY_RUN_CMD mkdir -p ${lib.escapeShellArg (builtins.dirOf localNu)}
     $DRY_RUN_CMD touch ${lib.escapeShellArg localNu}
   '';

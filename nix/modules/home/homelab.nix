@@ -3,9 +3,11 @@
   lib,
   pkgs,
   ...
-}: let
+}:
+let
   cfg = config.dotfiles.homelab;
-in {
+in
+{
   options.dotfiles.homelab = {
     enable = lib.mkEnableOption "personal homelab and infrastructure tooling";
 

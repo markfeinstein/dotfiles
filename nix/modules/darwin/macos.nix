@@ -3,35 +3,43 @@
   lib,
   pkgs,
   ...
-}: let
+}:
+let
   primaryUser = config.system.primaryUser;
   primaryHome = config.profile.user.homeDirectory;
   nativeTrackpadGestureDefaults = {
     TrackpadThreeFingerHorizSwipeGesture = 2;
     TrackpadThreeFingerVertSwipeGesture = 2;
   };
-  externalTrackpadDefaults =
-    {
-      Clicking = true;
-      TrackpadRightClick = true;
-      TrackpadCornerSecondaryClick = 0;
-      TrackpadTwoFingerTapGesture = 1;
-    }
-    // nativeTrackpadGestureDefaults;
+  externalTrackpadDefaults = {
+    Clicking = true;
+    TrackpadRightClick = true;
+    TrackpadCornerSecondaryClick = 0;
+    TrackpadTwoFingerTapGesture = 1;
+  }
+  // nativeTrackpadGestureDefaults;
   disabledMacosSymbolicHotKeys = config.dotfiles.macosSymbolicHotKeys.disabled;
   enabledMacosSymbolicHotKeys = config.dotfiles.macosSymbolicHotKeys.enabled;
-  structuredDockDefaults = builtins.removeAttrs config.system.defaults.dock ["expose-group-by-app"];
+  structuredDockDefaults = builtins.removeAttrs config.system.defaults.dock [ "expose-group-by-app" ];
   managedDockDefaults = config.system.defaults.CustomUserPreferences."com.apple.dock";
-  managedDockDefaultsJson = pkgs.writeText "managed-dock-defaults.json" (builtins.toJSON managedDockDefaults);
+  managedDockDefaultsJson = pkgs.writeText "managed-dock-defaults.json" (
+    builtins.toJSON managedDockDefaults
+  );
   dockPreferencesMatch = pkgs.writeShellScript "dock-preferences-match" ''
     exec ${pkgs.python3}/bin/python3 ${./scripts/dock-preferences-match.py} "$@"
   '';
-  disabledMacosSymbolicHotKeysArgs = lib.concatMapStringsSep " " toString disabledMacosSymbolicHotKeys;
+  disabledMacosSymbolicHotKeysArgs =
+    lib.concatMapStringsSep " " toString
+      disabledMacosSymbolicHotKeys;
   enabledMacosSymbolicHotKeysArgs = lib.concatMapStringsSep " " toString enabledMacosSymbolicHotKeys;
-  disabledMacosSymbolicHotKeysC = lib.concatMapStringsSep ", " toString (disabledMacosSymbolicHotKeys ++ [(0 - 1)]);
-  enabledMacosSymbolicHotKeysC = lib.concatMapStringsSep ", " toString (enabledMacosSymbolicHotKeys ++ [(0 - 1)]);
+  disabledMacosSymbolicHotKeysC = lib.concatMapStringsSep ", " toString (
+    disabledMacosSymbolicHotKeys ++ [ (0 - 1) ]
+  );
+  enabledMacosSymbolicHotKeysC = lib.concatMapStringsSep ", " toString (
+    enabledMacosSymbolicHotKeys ++ [ (0 - 1) ]
+  );
 
-  configureMacosSymbolicHotKeys = pkgs.runCommand "configure-macos-symbolic-hotkeys" {} ''
+  configureMacosSymbolicHotKeys = pkgs.runCommand "configure-macos-symbolic-hotkeys" { } ''
     mkdir -p $out/bin
     ${pkgs.clang}/bin/clang -framework Carbon -x c -o $out/bin/configure-macos-symbolic-hotkeys - <<'EOF'
     #include <Carbon/Carbon.h>
@@ -57,17 +65,18 @@
     }
     EOF
   '';
-  activationHelpers = import ./activation-helpers.nix {inherit config;};
-in {
+  activationHelpers = import ./activation-helpers.nix { inherit config; };
+in
+{
   options.dotfiles.macosSymbolicHotKeys = {
     disabled = lib.mkOption {
       type = lib.types.listOf lib.types.int;
-      default = [];
+      default = [ ];
       description = "macOS symbolic hotkey IDs disabled by the active configuration";
     };
     enabled = lib.mkOption {
       type = lib.types.listOf lib.types.int;
-      default = [];
+      default = [ ];
       description = "macOS symbolic hotkey IDs explicitly enabled by the active configuration";
     };
   };
@@ -79,7 +88,7 @@ in {
         message = "macOS policy requires system.primaryUser";
       }
       {
-        assertion = lib.intersectLists disabledMacosSymbolicHotKeys enabledMacosSymbolicHotKeys == [];
+        assertion = lib.intersectLists disabledMacosSymbolicHotKeys enabledMacosSymbolicHotKeys == [ ];
         message = "dotfiles.macosSymbolicHotKeys.enabled and .disabled must not overlap";
       }
       {
@@ -270,9 +279,13 @@ in {
           /usr/bin/pmset -b displaysleep 10
           /usr/bin/pmset -c displaysleep 30
 
-          ${activationHelpers.configureMacosSymbolicHotKeys {inherit disabledMacosSymbolicHotKeysArgs enabledMacosSymbolicHotKeysArgs;}}
+          ${activationHelpers.configureMacosSymbolicHotKeys {
+            inherit disabledMacosSymbolicHotKeysArgs enabledMacosSymbolicHotKeysArgs;
+          }}
           ${activationHelpers.disableSafariSidebarShortcut}
-          ${activationHelpers.reloadPreferencesAndConfigureLiveHotKeys {inherit configureMacosSymbolicHotKeys;}}
+          ${activationHelpers.reloadPreferencesAndConfigureLiveHotKeys {
+            inherit configureMacosSymbolicHotKeys;
+          }}
         '';
       };
     };

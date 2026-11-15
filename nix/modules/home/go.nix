@@ -1,6 +1,8 @@
-{config, ...}: let
+{ config, ... }:
+let
   goPath = "${config.home.homeDirectory}/go";
-in {
+in
+{
   programs.go = {
     enable = true;
     env.GOPATH = goPath;

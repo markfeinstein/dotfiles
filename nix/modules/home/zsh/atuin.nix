@@ -1,7 +1,9 @@
-{lib, ...}: let
+{ lib, ... }:
+let
   terminalColors = import ../../../lib/terminal-colors.nix;
   palette = terminalColors.atuin;
-in {
+in
+{
   programs.atuin = {
     enable = true;
     enableZshIntegration = true;

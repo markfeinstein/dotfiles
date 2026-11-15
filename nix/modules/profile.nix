@@ -4,17 +4,21 @@
   options,
   pkgs,
   ...
-}: let
+}:
+let
   isDarwin = options ? system && options ? users && builtins.hasAttr "home-manager" options;
   isHomeManager = options ? home;
   inherit (config.profile.user) homeDirectory username;
-in {
+in
+{
   options.profile = {
     name = lib.mkOption {
-      type = lib.types.nullOr (lib.types.enum [
-        "personal"
-        "work"
-      ]);
+      type = lib.types.nullOr (
+        lib.types.enum [
+          "personal"
+          "work"
+        ]
+      );
       default = null;
       description = "Selected configuration profile";
     };
@@ -41,9 +45,10 @@ in {
       homeDirectory = lib.mkOption {
         type = lib.types.str;
         default =
-          if pkgs.stdenv.hostPlatform.isDarwin
-          then "/Users/${config.profile.user.username}"
-          else "/home/${config.profile.user.username}";
+          if pkgs.stdenv.hostPlatform.isDarwin then
+            "/Users/${config.profile.user.username}"
+          else
+            "/home/${config.profile.user.username}";
         description = "User home directory";
       };
     };

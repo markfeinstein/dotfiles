@@ -3,7 +3,8 @@
   lib,
   pkgs,
   ...
-}: let
+}:
+let
   cfg = config.dotfiles.homebrew;
   primaryUser = config.system.primaryUser;
   orcaSlicerCask = "orcaslicer@nightly";
@@ -31,7 +32,8 @@
     orcaSlicerCask
     "bambu-studio"
   ];
-in {
+in
+{
   options.dotfiles = {
     homebrew = {
       applications.enable = lib.mkOption {
@@ -57,7 +59,7 @@ in {
     homebrew = {
       enable = true;
       enableZshIntegration = true;
-      brews = [];
+      brews = [ ];
       casks =
         commonCasks
         ++ lib.optionals cfg.applications.enable applicationCasks
@@ -98,8 +100,8 @@ in {
 
     home-manager.users.${primaryUser} = lib.mkIf cfg.printing.enable {
       programs.neovim = {
-        extraPackages = [pkgs.openscad-lsp];
-        plugins = [pkgs.vimPlugins.vim-openscad];
+        extraPackages = [ pkgs.openscad-lsp ];
+        plugins = [ pkgs.vimPlugins.vim-openscad ];
       };
     };
 

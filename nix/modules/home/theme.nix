@@ -2,9 +2,11 @@
   config,
   lib,
   ...
-}: let
+}:
+let
   theme = import ../../lib/theme.nix;
-in {
+in
+{
   options.dotfiles.theme.darkVariant = lib.mkOption {
     type = lib.types.enum [
       "rose-pine"
@@ -22,7 +24,6 @@ in {
       }
     ];
 
-    home.sessionVariables.DOTFILES_ROSE_PINE_DARK_VARIANT =
-      config.dotfiles.theme.darkVariant;
+    home.sessionVariables.DOTFILES_ROSE_PINE_DARK_VARIANT = config.dotfiles.theme.darkVariant;
   };
 }

@@ -2,16 +2,19 @@
   lib,
   pkgs,
   ...
-}: let
-  requirePackage = name:
-    if builtins.hasAttr name pkgs
-    then builtins.getAttr name pkgs
+}:
+let
+  requirePackage =
+    name:
+    if builtins.hasAttr name pkgs then
+      builtins.getAttr name pkgs
     else
       throw ''
         homeModules.common requires packages provided by overlays.default;
         apply the exported overlay to the Home Manager package set
       '';
-in {
+in
+{
   home.packages = [
     pkgs._1password-cli
     pkgs.actionlint

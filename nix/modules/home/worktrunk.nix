@@ -2,23 +2,28 @@
   lib,
   pkgs,
   ...
-}: let
+}:
+let
   worktrunk = pkgs.worktrunk;
   wt = lib.getExe' worktrunk "wt";
 
   nushellIntegration =
-    pkgs.runCommand "worktrunk.nu" {
-      nativeBuildInputs = [worktrunk];
-    } ''
-      wt config shell init nu > "$out"
-    '';
+    pkgs.runCommand "worktrunk.nu"
+      {
+        nativeBuildInputs = [ worktrunk ];
+      }
+      ''
+        wt config shell init nu > "$out"
+      '';
 
   nushellAutoload =
-    if pkgs.stdenv.hostPlatform.isDarwin
-    then "Library/Application Support/nushell/vendor/autoload/wt.nu"
-    else ".local/share/nushell/vendor/autoload/wt.nu";
-in {
-  home.packages = [worktrunk];
+    if pkgs.stdenv.hostPlatform.isDarwin then
+      "Library/Application Support/nushell/vendor/autoload/wt.nu"
+    else
+      ".local/share/nushell/vendor/autoload/wt.nu";
+in
+{
+  home.packages = [ worktrunk ];
 
   xdg.configFile."worktrunk/config.toml".text = ''
     worktree-path = "{{ repo_path }}/../{{ branch | sanitize }}"

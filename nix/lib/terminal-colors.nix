@@ -56,11 +56,9 @@ let
     "white"
     "default"
   ];
-  sgr = index:
-    if index < 8
-    then toString (30 + index)
-    else toString (90 + index - 8);
-in {
+  sgr = index: if index < 8 then toString (30 + index) else toString (90 + index - 8);
+in
+{
   inherit roles sgr;
   starship = mapRoles starshipNames;
   zsh = builtins.mapAttrs (_: toString) roles;

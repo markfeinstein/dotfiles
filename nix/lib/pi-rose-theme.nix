@@ -1,24 +1,25 @@
 {
   variant ? "rose-pine",
   name ? variant,
-}: let
+}:
+let
   theme = import ./theme.nix;
   colors = theme.colors variant;
-  rosevars =
-    colors
-    // {
-      hlLow = colors.highlightLow;
-      hlMed = colors.highlightMed;
-      hlHigh = colors.highlightHigh;
-      # Keep Pi's message and tool surfaces within the official palette rather
-      # than carrying dark-only blended colors into Moon or Dawn.
-      customBg = colors.surface;
-      pendingBg = colors.highlightLow;
-      successBg = colors.highlightLow;
-      errorBg = colors.highlightLow;
-    };
-in {
-  "$schema" = "https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json";
+  rosevars = colors // {
+    hlLow = colors.highlightLow;
+    hlMed = colors.highlightMed;
+    hlHigh = colors.highlightHigh;
+    # Keep Pi's message and tool surfaces within the official palette rather
+    # than carrying dark-only blended colors into Moon or Dawn.
+    customBg = colors.surface;
+    pendingBg = colors.highlightLow;
+    successBg = colors.highlightLow;
+    errorBg = colors.highlightLow;
+  };
+in
+{
+  "$schema" =
+    "https://raw.githubusercontent.com/earendil-works/pi/main/packages/coding-agent/src/modes/interactive/theme/theme-schema.json";
   inherit name;
   vars = rosevars;
   colors = {

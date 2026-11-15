@@ -3,9 +3,11 @@
   lib,
   pkgs,
   ...
-}: let
+}:
+let
   cfg = config.dotfiles.keyboardFirmware;
-in {
+in
+{
   options.dotfiles.keyboardFirmware = {
     enable = lib.mkEnableOption "personal keyboard firmware tooling";
 

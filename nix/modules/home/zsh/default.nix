@@ -2,10 +2,12 @@
   config,
   lib,
   ...
-}: let
+}:
+let
   localZsh = "${config.xdg.configHome}/zsh/local.zsh";
   palette = (import ../../../lib/terminal-colors.nix).zsh;
-in {
+in
+{
   imports = [
     ./atuin.nix
     ./rex.nix

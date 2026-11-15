@@ -3,7 +3,8 @@
   lib,
   pkgs,
   ...
-}: let
+}:
+let
   cfg = config.dotfiles.nixMaintenance;
   nixBin = "/nix/var/nix/profiles/default/bin/nix";
   collectGarbage = "/nix/var/nix/profiles/default/bin/nix-collect-garbage";
@@ -74,7 +75,8 @@
       echo 'Nix maintenance completed'
     '';
   };
-in {
+in
+{
   options.dotfiles.nixMaintenance = {
     enable = lib.mkOption {
       type = lib.types.bool;
@@ -109,10 +111,10 @@ in {
     ];
 
     dotfiles.nixMaintenance.package = maintenance;
-    environment.systemPackages = [maintenance];
+    environment.systemPackages = [ maintenance ];
 
     launchd.daemons.determinate-nix-maintenance.serviceConfig = {
-      ProgramArguments = ["${maintenance}/bin/determinate-nix-maintenance"];
+      ProgramArguments = [ "${maintenance}/bin/determinate-nix-maintenance" ];
       StartCalendarInterval = {
         Weekday = 0;
         Hour = 2;

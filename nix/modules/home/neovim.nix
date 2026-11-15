@@ -3,7 +3,8 @@
   lib,
   pkgs,
   ...
-}: let
+}:
+let
   cfg = config.dotfiles.neovim;
 
   baseTreesitterGrammars = [
@@ -190,24 +191,20 @@
     web = cfg.tooling.web.enable;
   };
 
-  neovimTreesitter =
-    pkgs.vimPlugins.nvim-treesitter.withPlugins (grammars:
-      map (name: grammars.${name}) cfg.treesitterGrammars);
+  neovimTreesitter = pkgs.vimPlugins.nvim-treesitter.withPlugins (
+    grammars: map (name: grammars.${name}) cfg.treesitterGrammars
+  );
 
   neovimRuntimeEnv = pkgs.buildEnv {
     name = "neovim-runtime-tools";
     paths = cfg.runtimePackages;
-    pathsToLink = ["/bin"];
+    pathsToLink = [ "/bin" ];
   };
 
   profileLua = pkgs.writeText "dotfiles-neovim-profile.lua" (
     lib.concatStringsSep "\n" (
       [
-        "vim.g.dotfiles_neovim_ai_enabled = ${
-          if cfg.features.ai
-          then "true"
-          else "false"
-        }"
+        "vim.g.dotfiles_neovim_ai_enabled = ${if cfg.features.ai then "true" else "false"}"
         "vim.g.dotfiles_neovim_tooling = vim.json.decode([==[${builtins.toJSON toolingState}]==])"
         "vim.g.dotfiles_obsidian_workspaces = vim.json.decode([==[${builtins.toJSON cfg.obsidian.workspaces}]==])"
         "return true"
@@ -217,7 +214,7 @@
     + "\n"
   );
 
-  configSource = pkgs.runCommand "dotfiles-neovim-config" {} ''
+  configSource = pkgs.runCommand "dotfiles-neovim-config" { } ''
     cp -R ${../../../nvim} "$out"
     chmod -R u+w "$out"
     ${lib.optionalString (!cfg.features.ai) ''
@@ -227,33 +224,50 @@
     mkdir -p "$out/themes"
     ln -s ${../../../themes/rose-pine.json} "$out/themes/rose-pine.json"
   '';
-in {
+in
+{
   options.dotfiles.neovim = {
     features.ai = lib.mkEnableOption "CodeCompanion and Copilot integration";
 
     tooling = {
-      documents.enable = lib.mkEnableOption "document, image, diagram, and TeX rendering tools" // {default = true;};
-      go.enable = lib.mkEnableOption "Go formatting, language-server, linting, testing, and debugging tools" // {default = true;};
-      infrastructure.enable = lib.mkEnableOption "Docker, Protobuf, and Terraform language tools" // {default = true;};
-      rust.enable = lib.mkEnableOption "Rust formatting and language-server tools" // {default = true;};
-      sql.enable = lib.mkEnableOption "SQL language-server and linting tools" // {default = true;};
-      web.enable = lib.mkEnableOption "web formatting and language-server tools" // {default = true;};
+      documents.enable = lib.mkEnableOption "document, image, diagram, and TeX rendering tools" // {
+        default = true;
+      };
+      go.enable =
+        lib.mkEnableOption "Go formatting, language-server, linting, testing, and debugging tools"
+        // {
+          default = true;
+        };
+      infrastructure.enable = lib.mkEnableOption "Docker, Protobuf, and Terraform language tools" // {
+        default = true;
+      };
+      rust.enable = lib.mkEnableOption "Rust formatting and language-server tools" // {
+        default = true;
+      };
+      sql.enable = lib.mkEnableOption "SQL language-server and linting tools" // {
+        default = true;
+      };
+      web.enable = lib.mkEnableOption "web formatting and language-server tools" // {
+        default = true;
+      };
     };
 
     obsidian.workspaces = lib.mkOption {
-      type = lib.types.listOf (lib.types.submodule {
-        options = {
-          name = lib.mkOption {
-            type = lib.types.str;
-            description = "Obsidian workspace name";
+      type = lib.types.listOf (
+        lib.types.submodule {
+          options = {
+            name = lib.mkOption {
+              type = lib.types.str;
+              description = "Obsidian workspace name";
+            };
+            path = lib.mkOption {
+              type = lib.types.str;
+              description = "Absolute or home-relative Obsidian vault path";
+            };
           };
-          path = lib.mkOption {
-            type = lib.types.str;
-            description = "Absolute or home-relative Obsidian vault path";
-          };
-        };
-      });
-      default = [];
+        }
+      );
+      default = [ ];
       description = "Profile-owned Obsidian vault workspaces";
     };
 
@@ -297,9 +311,9 @@ in {
   config = {
     assertions = [
       {
-        assertion = lib.all (workspace:
-          lib.hasPrefix "/" workspace.path || lib.hasPrefix "~/" workspace.path)
-        cfg.obsidian.workspaces;
+        assertion = lib.all (
+          workspace: lib.hasPrefix "/" workspace.path || lib.hasPrefix "~/" workspace.path
+        ) cfg.obsidian.workspaces;
         message = "dotfiles.neovim.obsidian.workspaces paths must be absolute or start with ~/";
       }
       {

@@ -1,4 +1,4 @@
-{lib, ...}: {
+{ lib, ... }: {
   profile.name = "personal";
 
   dotfiles = {

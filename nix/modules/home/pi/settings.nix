@@ -1,7 +1,8 @@
 {
   lib,
   pkgs,
-}: let
+}:
+let
   powerlinePillColors = {
     token_in = "terminal:bright-blue";
     token_out = "terminal:bright-blue";
@@ -16,7 +17,8 @@
     shell_mode = "terminal:bright-green";
     queue = "terminal:bright-yellow";
   };
-in {
+in
+{
   defaultProvider = "github-copilot";
   defaultModel = "gpt-5.6-sol";
   defaultThinkingLevel = "high";
@@ -31,8 +33,8 @@ in {
   enableAnalytics = false;
   defaultProjectTrust = "ask";
   treeFilterMode = "no-tools";
-  defaultTools = ["+codemode"];
-  npmCommand = ["${pkgs.nodejs}/bin/npm"];
+  defaultTools = [ "+codemode" ];
+  npmCommand = [ "${pkgs.nodejs}/bin/npm" ];
 
   subagents = {
     defaultModel = "github-copilot/gpt-6.1-terra";
@@ -60,7 +62,7 @@ in {
         model = "github-copilot/gpt-6.1-terra";
         thinking = "high";
         inheritGlobalContext = true;
-        skills = ["repository-workflow"];
+        skills = [ "repository-workflow" ];
       };
       reviewer = {
         model = "openai-codex/gpt-6.1-sol";
@@ -95,7 +97,7 @@ in {
         "cost"
         "queue"
       ];
-      secondary = ["extension_statuses"];
+      secondary = [ "extension_statuses" ];
     };
     secondaryOverflow = "drop";
     path.mode = "basename";
