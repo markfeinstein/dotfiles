@@ -1,5 +1,11 @@
-_: let
+{
+  config,
+  lib,
+  pkgs,
+  ...
+}: let
   palette = (import ../../lib/terminal-colors.nix).starship;
+  legacyNushellAutoload = "${config.home.homeDirectory}/Library/Application Support/nushell/vendor/autoload/starship.nu";
 in {
   programs.starship = {
     enable = true;
@@ -94,4 +100,17 @@ in {
       };
     };
   };
+
+  home.activation.removeLegacyNushellStarship = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    legacy_autoload=${lib.escapeShellArg legacyNushellAutoload}
+    if [ -f "$legacy_autoload" ] \
+      && [ ! -L "$legacy_autoload" ] \
+      && ${pkgs.gnugrep}/bin/grep -Fq '/opt/homebrew/bin/starship' "$legacy_autoload"; then
+      if [ -n "''${DRY_RUN_CMD:-}" ]; then
+        echo "Would remove the stale Homebrew-generated Nushell Starship autoload"
+      else
+        ${pkgs.coreutils}/bin/rm -f -- "$legacy_autoload"
+      fi
+    fi
+  '';
 }
