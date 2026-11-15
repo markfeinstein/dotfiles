@@ -11,6 +11,7 @@ let
   orcaSlicerBaseCask = builtins.head (lib.splitString "@" orcaSlicerCask);
   commonCasks = [
     "alfred"
+    "claude"
     "obsidian"
   ];
   applicationCasks = [
