@@ -171,15 +171,33 @@ local function close_collapsible_callouts(bufnr, winid)
 	end, FOLD_WAIT_MS)
 end
 
--- Vault paths are supplied by the active Nix profile. The common work profile
--- intentionally remains dormant until its private repository adds workspaces.
+-- Vault paths and general preferences are supplied by the active Nix profile.
+local obsidian_profile = vim.g.dotfiles_obsidian or {}
 local vault_workspaces = {}
 local vault_patterns = {}
-for _, workspace in ipairs(vim.g.dotfiles_obsidian_workspaces or {}) do
-	local path = vim.fn.expand(workspace.path)
+local vault_roots = {}
+
+local function normalize_path(path)
+	local normalized = vim.fs.normalize(vim.fn.fnamemodify(vim.fn.expand(path), ":p"))
+	return normalized == "/" and normalized or normalized:gsub("/+$", "")
+end
+
+for _, workspace in ipairs(obsidian_profile.workspaces or {}) do
+	local path = normalize_path(workspace.path)
 	vault_workspaces[#vault_workspaces + 1] = { name = workspace.name, path = path }
 	vault_patterns[#vault_patterns + 1] = vim.fs.joinpath(path, "*.md")
 	vault_patterns[#vault_patterns + 1] = vim.fs.joinpath(path, "**", "*.md")
+	vault_roots[#vault_roots + 1] = path
+end
+
+local function is_vault_path(path)
+	local normalized = normalize_path(path)
+	for _, root in ipairs(vault_roots) do
+		if normalized == root or vim.startswith(normalized, root .. "/") then
+			return true
+		end
+	end
+	return false
 end
 
 -- Defer vault configuration loading until plugin opts are evaluated
@@ -189,8 +207,8 @@ local function get_obsidian_config()
 		legacy_commands = false,
 		workspaces = vault_workspaces,
 		daily_notes = {
-			folder = "Journal/Daily",
-			date_format = "%Y-%m-%d",
+			folder = obsidian_profile.daily_notes.folder,
+			date_format = obsidian_profile.daily_notes.date_format,
 			alias_format = "%B %-d, %Y",
 			template = "Daily Note.md",
 		},
@@ -198,13 +216,13 @@ local function get_obsidian_config()
 			min_chars = 1,
 			match_case = false,
 		},
-		notes_subdir = "Inbox",
+		notes_subdir = obsidian_profile.notes_subdir,
 
 		note_id_func = function(title)
 			return title
 		end,
 		templates = {
-			folder = "Resources/Templates",
+			folder = obsidian_profile.templates.folder,
 		},
 		checkbox = {
 			order = {
@@ -317,17 +335,50 @@ local function _navigate_daily(bufnr, offset_days)
 	end
 end
 
-if #vault_patterns > 0 then
-	local obsidian_group = vim.api.nvim_create_augroup("obsidian_vault")
+local function load_obsidian_for_path(trigger, path)
+	if path ~= "" and is_vault_path(path) then
+		return ensure_obsidian_loaded(trigger)
+	end
+	return false
+end
 
-	vim.api.nvim_create_autocmd("BufReadPre", {
+local function load_obsidian_for_cwd(trigger)
+	return load_obsidian_for_path(trigger, vim.fn.getcwd())
+end
+
+if #vault_patterns > 0 then
+	local obsidian_group = vim.api.nvim_create_augroup("obsidian_vault", { clear = true })
+
+	vim.api.nvim_create_autocmd({ "BufReadPre", "BufNewFile" }, {
 		group = obsidian_group,
 		pattern = vault_patterns,
-		callback = function()
-			ensure_obsidian_loaded("BufReadPre")
+		callback = function(ev)
+			load_obsidian_for_path(ev.event, vim.api.nvim_buf_get_name(ev.buf))
 		end,
 		desc = "Load Obsidian for vault files",
 	})
+
+	vim.api.nvim_create_autocmd("VimEnter", {
+		group = obsidian_group,
+		callback = function()
+			load_obsidian_for_cwd("VimEnter")
+		end,
+		desc = "Load Obsidian when starting inside a vault",
+	})
+
+	vim.api.nvim_create_autocmd("DirChanged", {
+		group = obsidian_group,
+		callback = function()
+			load_obsidian_for_cwd("DirChanged")
+		end,
+		desc = "Load Obsidian after entering a vault directory",
+	})
+
+	if vim.v.vim_did_enter == 1 then
+		vim.schedule(function()
+			load_obsidian_for_cwd("configuration reload")
+		end)
+	end
 
 	vim.api.nvim_create_autocmd("BufWinEnter", {
 		group = obsidian_group,
@@ -384,3 +435,10 @@ if #vault_patterns > 0 then
 		desc = "Setup Obsidian daily navigation keybinds",
 	})
 end
+
+local autosave = obsidian_profile.autosave or {}
+require("mark.obsidian_autosave").setup({
+	enabled = autosave.enabled == true and #vault_roots > 0,
+	interval_ms = autosave.interval_ms or 30000,
+	is_vault_path = is_vault_path,
+})
