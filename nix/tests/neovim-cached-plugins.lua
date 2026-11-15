@@ -26,8 +26,15 @@ local ok, err = pcall(function()
 	end
 
 	local optional = vim.fn.globpath(vim.o.packpath, "pack/*/opt/*", false, true)
+	-- Several optional plugins source modules from plenary during :packadd.
+	-- Load the shared dependency before iterating the package directory, whose
+	-- lexical order places consumers such as CodeCompanion first.
+	vim.cmd.packadd("plenary.nvim")
 	for _, path in ipairs(optional) do
-		vim.cmd.packadd(vim.fs.basename(path))
+		local name = vim.fs.basename(path)
+		if name ~= "plenary.nvim" then
+			vim.cmd.packadd(name)
+		end
 	end
 	for _, module in ipairs({ "flash", "snacks", "oil", "blink.cmp", "codediff", "nvim-treesitter" }) do
 		assert(require(module), "cannot load cached plugin: " .. module)
