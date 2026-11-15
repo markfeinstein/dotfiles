@@ -19,7 +19,13 @@
 
   packageOverlay = import ./overlays;
   rexPickerOverlay = final: _prev: {
-    rex-picker = rex-picker.packages.${final.stdenv.hostPlatform.system}.default;
+    rex-picker = rex-picker.packages.${final.stdenv.hostPlatform.system}.default.overrideAttrs (old: {
+      # Newer Cargo hooks disable bundled SQLite; the pinned flake omits these inputs.
+      nativeBuildInputs = (old.nativeBuildInputs or []) ++ [final.pkg-config];
+      buildInputs = (old.buildInputs or []) ++ [final.sqlite];
+      # Use Nix's SQLite consistently, including with older Cargo hooks.
+      env = (old.env or {}) // {LIBSQLITE3_SYS_USE_PKG_CONFIG = "1";};
+    });
   };
   yabaiOverlay = final: _prev: {
     yabai = yabai.packages.${final.stdenv.hostPlatform.system}.default;
