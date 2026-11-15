@@ -120,7 +120,7 @@ in
       "Workspace.terminalUseThemePalette" = false;
       "Workspace.terminalUsesDisplayP3" = false;
 
-      "Workspace.notificationPosition" = "top-right";
+      "Workspace.notificationPosition" = lib.mkDefault "top-center";
       "Workspace.sidebarShowsActivity" = false;
       "Workspace.experiments.groupsActivityByPriority" = true;
       "Workspace.activityGrouping" = "priority";
