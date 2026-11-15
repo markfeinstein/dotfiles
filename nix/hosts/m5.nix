@@ -3,9 +3,11 @@
   lib,
   pkgs,
   ...
-}: let
+}:
+let
   username = config.profile.user.username;
-in {
+in
+{
   networking.hostName = "m5";
 
   dotfiles.yabai.fixedSpaceTargets = true;
@@ -29,7 +31,7 @@ in {
     "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIIWtC2r2HOrM8v9FCh2vbzQpc4GzJQDWsmRe4PrG18tn m5-onepassword"
   ];
 
-  environment.systemPackages = [pkgs.mosh];
+  environment.systemPackages = [ pkgs.mosh ];
 
   system.defaults.CustomUserPreferences."com.apple.dock".tilesize = lib.mkForce 32;
 }

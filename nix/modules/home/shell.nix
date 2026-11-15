@@ -2,9 +2,11 @@
   config,
   lib,
   ...
-}: let
+}:
+let
   rosePineLsColors = import ../../lib/rose-pine-ls-colors.nix;
-in {
+in
+{
   home = {
     sessionPath = [
       "${config.home.homeDirectory}/.local/bin"

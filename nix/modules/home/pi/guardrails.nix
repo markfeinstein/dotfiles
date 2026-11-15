@@ -8,27 +8,71 @@
   features.permissionGate = true;
   permissionGate = {
     requireConfirmation = true;
-    allowedPatterns = [];
+    allowedPatterns = [ ];
     patterns =
-      map (entry: {
-        pattern = builtins.elemAt entry 0;
-        description = builtins.elemAt entry 1;
-      }) [
-        ["rm -rf" "recursive force delete"]
-        ["sudo" "superuser command"]
-        ["dd of=" "disk write operation"]
-        ["mkfs." "filesystem format"]
-        ["chmod -R 777" "insecure recursive permissions"]
-        ["chown -R" "recursive ownership change"]
-        ["doas" "privileged command execution"]
-        ["pkexec" "privileged command execution"]
-        ["shred" "secure file overwrite"]
-        ["wipefs" "filesystem signature wipe"]
-        ["blkdiscard" "block device discard"]
-        ["fdisk" "disk partitioning"]
-        ["parted" "disk partitioning"]
-        ["docker run --privileged" "container with privileged mode"]
-      ]
+      map
+        (entry: {
+          pattern = builtins.elemAt entry 0;
+          description = builtins.elemAt entry 1;
+        })
+        [
+          [
+            "rm -rf"
+            "recursive force delete"
+          ]
+          [
+            "sudo"
+            "superuser command"
+          ]
+          [
+            "dd of="
+            "disk write operation"
+          ]
+          [
+            "mkfs."
+            "filesystem format"
+          ]
+          [
+            "chmod -R 777"
+            "insecure recursive permissions"
+          ]
+          [
+            "chown -R"
+            "recursive ownership change"
+          ]
+          [
+            "doas"
+            "privileged command execution"
+          ]
+          [
+            "pkexec"
+            "privileged command execution"
+          ]
+          [
+            "shred"
+            "secure file overwrite"
+          ]
+          [
+            "wipefs"
+            "filesystem signature wipe"
+          ]
+          [
+            "blkdiscard"
+            "block device discard"
+          ]
+          [
+            "fdisk"
+            "disk partitioning"
+          ]
+          [
+            "parted"
+            "disk partitioning"
+          ]
+          [
+            "docker run --privileged"
+            "container with privileged mode"
+          ]
+        ]
       ++ [
         {
           pattern = ''(?:^|[;&|(){}\s])gh(?:\s+(?:-[^\s;&|(){}]+|--[^\s;&|(){}]+)(?:[=\s]+(?:"[^"]*"|'[^']*'|[^\s;&|(){}]+))?)*\s+issue(?:\s+(?:(?:-R\s+|-R(?=\S)|--repo(?:=|\s+))[^\s;&|(){}]+))*\s+(?!(?:list|status|view)\b)(?!-)\S+'';

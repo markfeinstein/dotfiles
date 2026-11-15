@@ -3,10 +3,12 @@
   lib,
   pkgs,
   ...
-}: let
+}:
+let
   palette = (import ../../lib/terminal-colors.nix).starship;
   legacyNushellAutoload = "${config.home.homeDirectory}/Library/Application Support/nushell/vendor/autoload/starship.nu";
-in {
+in
+{
   programs.starship = {
     enable = true;
     enableZshIntegration = true;
@@ -101,7 +103,7 @@ in {
     };
   };
 
-  home.activation.removeLegacyNushellStarship = lib.hm.dag.entryAfter ["writeBoundary"] ''
+  home.activation.removeLegacyNushellStarship = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     legacy_autoload=${lib.escapeShellArg legacyNushellAutoload}
     if [ -f "$legacy_autoload" ] \
       && [ ! -L "$legacy_autoload" ] \

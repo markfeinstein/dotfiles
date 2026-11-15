@@ -3,11 +3,13 @@
   lib,
   pkgs,
   ...
-}: let
+}:
+let
   username = config.profile.user.username;
   loginShell = "/run/current-system/sw${pkgs.nushell.shellPath}";
-in {
-  environment.shells = [pkgs.nushell];
+in
+{
+  environment.shells = [ pkgs.nushell ];
   users.users.${username}.shell = pkgs.nushell;
 
   # The primary account predates nix-darwin and is intentionally not listed in

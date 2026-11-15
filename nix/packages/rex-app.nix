@@ -13,7 +13,7 @@ stdenvNoCC.mkDerivation {
     hash = "sha256-Wgfh8NgduqYTH5rM+Vq6KLjPsRY+e+L8dHDiSjYaG+Y=";
   };
 
-  nativeBuildInputs = [undmg];
+  nativeBuildInputs = [ undmg ];
   sourceRoot = ".";
   dontFixup = true;
 
@@ -37,7 +37,7 @@ stdenvNoCC.mkDerivation {
     description = "Rex terminal application snapshot";
     homepage = "https://rex.superlogical.com";
     license = lib.licenses.unfree;
-    platforms = ["aarch64-darwin"];
-    sourceProvenance = [lib.sourceTypes.binaryNativeCode];
+    platforms = [ "aarch64-darwin" ];
+    sourceProvenance = [ lib.sourceTypes.binaryNativeCode ];
   };
 }

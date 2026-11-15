@@ -3,7 +3,8 @@
   lib,
   pkgs,
   ...
-}: let
+}:
+let
   cfg = config.dotfiles.rex;
   primaryUser = config.system.primaryUser;
   rexApp = pkgs.rex-app;
@@ -21,7 +22,8 @@
     "--team-identifier"
     rexApp.teamIdentifier
   ];
-in {
+in
+{
   options.dotfiles.rex = {
     installApp = lib.mkOption {
       type = lib.types.bool;
@@ -37,39 +39,40 @@ in {
   };
 
   config = {
-    dotfiles.yabai.applicationRules =
-      {
-        rex-settings = {
-          match = {
-            app.pattern = "Rex Beta";
-            title.pattern = "^Settings - ";
-          };
-          effects.manage = false;
+    dotfiles.yabai.applicationRules = {
+      rex-settings = {
+        match = {
+          app.pattern = "Rex Beta";
+          title.pattern = "^Settings - ";
         };
-      }
-      // lib.optionalAttrs config.dotfiles.yabai.fixedSpaceTargets {
-        rex = {
-          match.app.pattern = "Rex Beta";
-          effects = {
-            space.index = 3;
-            follow = true;
-          };
+        effects.manage = false;
+      };
+    }
+    // lib.optionalAttrs config.dotfiles.yabai.fixedSpaceTargets {
+      rex = {
+        match.app.pattern = "Rex Beta";
+        effects = {
+          space.index = 3;
+          follow = true;
         };
       };
+    };
 
-    fonts.packages = [pkgs.nerd-fonts.symbols-only];
+    fonts.packages = [ pkgs.nerd-fonts.symbols-only ];
 
-    system.activationScripts.preActivation.text = lib.mkIf cfg.installApp (lib.mkBefore ''
-      if [ -n "''${DRY_RUN_CMD:-}" ]; then
-        echo "Would install the signed Rex application in /Applications"
-      else
-        rex_app_install_result="$(${lib.getExe installRexApp} ${installRexAppArgs})"
-        case "$rex_app_install_result" in
-          no-op|changed) ;;
-          *) echo "unexpected Rex application installation result: $rex_app_install_result" >&2; exit 1 ;;
-        esac
-      fi
-    '');
+    system.activationScripts.preActivation.text = lib.mkIf cfg.installApp (
+      lib.mkBefore ''
+        if [ -n "''${DRY_RUN_CMD:-}" ]; then
+          echo "Would install the signed Rex application in /Applications"
+        else
+          rex_app_install_result="$(${lib.getExe installRexApp} ${installRexAppArgs})"
+          case "$rex_app_install_result" in
+            no-op|changed) ;;
+            *) echo "unexpected Rex application installation result: $rex_app_install_result" >&2; exit 1 ;;
+          esac
+        fi
+      ''
+    );
 
     home-manager.users.${primaryUser}.targets.darwin.defaults."com.superlogical.rex" = {
       "RexAppUpdateChannel" = "snapshot";
@@ -98,7 +101,7 @@ in {
       "Workspace.terminalFontName" = "JetBrains Mono";
       "Workspace.terminalFontPointSize" = 14;
       "Workspace.terminalPaddingY" = 8.0;
-      "Workspace.terminalFallbackFontNames" = ["Symbols Nerd Font Mono"];
+      "Workspace.terminalFallbackFontNames" = [ "Symbols Nerd Font Mono" ];
       "Workspace.terminalAllowsLigatures" = true;
       "Workspace.terminalFontSmoothing" = false;
       "Workspace.terminalSmoothScrolling" = true;
@@ -134,7 +137,7 @@ in {
       "rex.server.automatic-restart-enabled" = true;
       "rex.server.block-plugin-reload-enabled" = false;
       "rex.server.run-mode" = "bundled";
-      "rex.server.web-client-origin-patterns" = ["https://rex.superlogical.com"];
+      "rex.server.web-client-origin-patterns" = [ "https://rex.superlogical.com" ];
       "rex.agents.names-sessions" = true;
     };
   };

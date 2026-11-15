@@ -2,8 +2,9 @@
   lib,
   pkgs,
   ...
-}: let
-  inlineShellLibrary = import ../../lib/inline-shell-library.nix {inherit lib;};
+}:
+let
+  inlineShellLibrary = import ../../lib/inline-shell-library.nix { inherit lib; };
   rebuild = pkgs.writeShellApplication {
     name = "rebuild";
     runtimeInputs = [
@@ -17,6 +18,7 @@
     ];
     text = inlineShellLibrary ../../../bin/rebuild ../../../bin/lib/profile.sh;
   };
-in {
-  home.packages = [rebuild];
+in
+{
+  home.packages = [ rebuild ];
 }

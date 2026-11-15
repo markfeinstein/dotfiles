@@ -3,34 +3,31 @@
   lib,
   pkgs,
   ...
-}: let
+}:
+let
   cfg = config.dotfiles.credentials;
-  absolutePath = description:
+  absolutePath =
+    description:
     lib.mkOption {
       type = lib.types.str;
       inherit description;
     };
-in {
+in
+{
   options.dotfiles.credentials = {
     enable = lib.mkEnableOption "personal pass, GPG, and non-secret credential environment";
 
-    passwordStoreDirectory =
-      absolutePath "Directory containing the personal pass store"
-      // {
-        default = "${config.xdg.dataHome}/password-store";
-      };
+    passwordStoreDirectory = absolutePath "Directory containing the personal pass store" // {
+      default = "${config.xdg.dataHome}/password-store";
+    };
 
-    localSshConfigPath =
-      absolutePath "Optional machine-local OpenSSH include"
-      // {
-        default = "${config.home.homeDirectory}/.ssh/config.local";
-      };
+    localSshConfigPath = absolutePath "Optional machine-local OpenSSH include" // {
+      default = "${config.home.homeDirectory}/.ssh/config.local";
+    };
 
-    sopsAgeKeyFile =
-      absolutePath "Expected local SOPS age-key file"
-      // {
-        default = "${config.xdg.configHome}/sops/age/keys.txt";
-      };
+    sopsAgeKeyFile = absolutePath "Expected local SOPS age-key file" // {
+      default = "${config.xdg.configHome}/sops/age/keys.txt";
+    };
 
     biometricUnlock = lib.mkOption {
       type = lib.types.bool;
@@ -51,7 +48,7 @@ in {
       }
     ];
 
-    programs.ssh.includes = [cfg.localSshConfigPath];
+    programs.ssh.includes = [ cfg.localSshConfigPath ];
 
     home = {
       packages = [
@@ -59,16 +56,15 @@ in {
         pkgs.pass
       ];
 
-      sessionVariables =
-        {
-          PASSWORD_STORE_DIR = cfg.passwordStoreDirectory;
-          SOPS_AGE_KEY_FILE = cfg.sopsAgeKeyFile;
-        }
-        // lib.optionalAttrs cfg.biometricUnlock {
-          OP_BIOMETRIC_UNLOCK_ENABLED = "true";
-        };
+      sessionVariables = {
+        PASSWORD_STORE_DIR = cfg.passwordStoreDirectory;
+        SOPS_AGE_KEY_FILE = cfg.sopsAgeKeyFile;
+      }
+      // lib.optionalAttrs cfg.biometricUnlock {
+        OP_BIOMETRIC_UNLOCK_ENABLED = "true";
+      };
 
-      activation.prepareCredentialPaths = lib.hm.dag.entryBefore ["checkLinkTargets"] ''
+      activation.prepareCredentialPaths = lib.hm.dag.entryBefore [ "checkLinkTargets" ] ''
         store=${lib.escapeShellArg cfg.passwordStoreDirectory}
         compatibility="$HOME/.password-store"
 
@@ -88,8 +84,7 @@ in {
         $DRY_RUN_CMD install -d -m 0700 "$store"
       '';
 
-      file.".password-store".source =
-        config.lib.file.mkOutOfStoreSymlink cfg.passwordStoreDirectory;
+      file.".password-store".source = config.lib.file.mkOutOfStoreSymlink cfg.passwordStoreDirectory;
     };
   };
 }

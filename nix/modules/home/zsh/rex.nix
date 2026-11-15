@@ -1,4 +1,4 @@
-{lib, ...}: {
+{ lib, ... }: {
   programs.zsh.initContent = lib.mkMerge [
     (lib.mkOrder 950 ''
       if [[ -o interactive &&

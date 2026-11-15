@@ -1,6 +1,8 @@
-_: let
+_:
+let
   palette = (import ../../lib/terminal-colors.nix).lazygit;
-in {
+in
+{
   programs.lazygit = {
     enable = true;
     enableNushellIntegration = true;
@@ -22,22 +24,22 @@ in {
             palette.foam
             "bold"
           ];
-          inactiveBorderColor = [palette.muted];
+          inactiveBorderColor = [ palette.muted ];
           searchingActiveBorderColor = [
             palette.gold
             "bold"
           ];
-          optionsTextColor = [palette.iris];
+          optionsTextColor = [ palette.iris ];
           selectedLineFgColor = [
             palette.text
             "bold"
           ];
-          selectedLineBgColor = ["reverse"];
-          inactiveViewSelectedLineBgColor = ["dim"];
-          cherryPickedCommitFgColor = [palette.foam];
-          cherryPickedCommitBgColor = [palette.rose];
-          unstagedChangesColor = [palette.love];
-          defaultFgColor = [palette.text];
+          selectedLineBgColor = [ "reverse" ];
+          inactiveViewSelectedLineBgColor = [ "dim" ];
+          cherryPickedCommitFgColor = [ palette.foam ];
+          cherryPickedCommitBgColor = [ palette.rose ];
+          unstagedChangesColor = [ palette.love ];
+          defaultFgColor = [ palette.text ];
         };
       };
 

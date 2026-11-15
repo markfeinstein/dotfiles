@@ -2,9 +2,11 @@
   lib,
   pkgs,
   ...
-}: let
+}:
+let
   terminalColors = import ../../lib/terminal-colors.nix;
-in {
+in
+{
   programs = {
     fzf = {
       enable = true;
