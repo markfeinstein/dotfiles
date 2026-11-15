@@ -201,12 +201,26 @@ let
     pathsToLink = [ "/bin" ];
   };
 
+  obsidianConfig = {
+    workspaces = cfg.obsidian.workspaces;
+    daily_notes = {
+      folder = cfg.obsidian.dailyNotes.folder;
+      date_format = cfg.obsidian.dailyNotes.dateFormat;
+    };
+    notes_subdir = cfg.obsidian.notesSubdir;
+    templates.folder = cfg.obsidian.templates.folder;
+    autosave = {
+      enabled = cfg.obsidian.autosave.enable;
+      interval_ms = cfg.obsidian.autosave.intervalSeconds * 1000;
+    };
+  };
+
   profileLua = pkgs.writeText "dotfiles-neovim-profile.lua" (
     lib.concatStringsSep "\n" (
       [
         "vim.g.dotfiles_neovim_ai_enabled = ${if cfg.features.ai then "true" else "false"}"
-        "vim.g.dotfiles_neovim_tooling = vim.json.decode([==[${builtins.toJSON toolingState}]==])"
-        "vim.g.dotfiles_obsidian_workspaces = vim.json.decode([==[${builtins.toJSON cfg.obsidian.workspaces}]==])"
+        "vim.g.dotfiles_neovim_tooling = ${lib.generators.toLua { } toolingState}"
+        "vim.g.dotfiles_obsidian = ${lib.generators.toLua { } obsidianConfig}"
         "return true"
       ]
       ++ lib.optional (cfg.extraLuaConfig != "") cfg.extraLuaConfig
@@ -252,23 +266,63 @@ in
       };
     };
 
-    obsidian.workspaces = lib.mkOption {
-      type = lib.types.listOf (
-        lib.types.submodule {
-          options = {
-            name = lib.mkOption {
-              type = lib.types.str;
-              description = "Obsidian workspace name";
+    obsidian = {
+      workspaces = lib.mkOption {
+        type = lib.types.listOf (
+          lib.types.submodule {
+            options = {
+              name = lib.mkOption {
+                type = lib.types.str;
+                description = "Obsidian workspace name";
+              };
+              path = lib.mkOption {
+                type = lib.types.str;
+                description = "Absolute or home-relative Obsidian vault path";
+              };
             };
-            path = lib.mkOption {
-              type = lib.types.str;
-              description = "Absolute or home-relative Obsidian vault path";
-            };
+          }
+        );
+        default = [ ];
+        description = "Profile-owned Obsidian vault workspaces";
+      };
+
+      dailyNotes = {
+        folder = lib.mkOption {
+          type = lib.types.strMatching ".+";
+          default = "1 - Journals";
+          description = "Vault-relative folder for Obsidian daily notes";
+        };
+        dateFormat = lib.mkOption {
+          type = lib.types.strMatching ".+";
+          default = "%Y/%m-%B/%Y-%m-%d-%A";
+          description = "strftime format for Obsidian daily-note paths";
+        };
+      };
+
+      notesSubdir = lib.mkOption {
+        type = lib.types.strMatching ".+";
+        default = "0 - Inbox";
+        description = "Vault-relative folder for new Obsidian notes";
+      };
+
+      templates.folder = lib.mkOption {
+        type = lib.types.strMatching ".+";
+        default = "8 - Templates";
+        description = "Vault-relative folder for Obsidian templates";
+      };
+
+      autosave = {
+        enable =
+          lib.mkEnableOption "periodic writes of modified Markdown buffers in configured Obsidian vaults"
+          // {
+            default = true;
           };
-        }
-      );
-      default = [ ];
-      description = "Profile-owned Obsidian vault workspaces";
+        intervalSeconds = lib.mkOption {
+          type = lib.types.ints.positive;
+          default = 30;
+          description = "Seconds between periodic Obsidian Markdown auto-saves";
+        };
+      };
     };
 
     runtimePackages = lib.mkOption {
