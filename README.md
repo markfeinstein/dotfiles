@@ -74,6 +74,8 @@ profile.obsidian.vaults = [
 Neovim consumes this inventory for `obsidian.nvim`, and other modules can use the
 same list without depending on editor-specific options. The default
 `obsidian.nvim` template folder is `8 - Resources/Templates` within each vault.
+Optional question, answer, daily-log, and reference-completion features are
+covered in [Optional Obsidian capture and reference completion](docs/obsidian-capture.md).
 
 Both profiles default to `github:markfeinstein/dotfiles/main`. Override their
 default remote sources independently when a profile should use a downstream
