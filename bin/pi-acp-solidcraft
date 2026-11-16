@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+: "${PI_ACP_COMMAND:?PI_ACP_COMMAND must name the pi-acp executable}"
+: "${PI_ACP_PI_COMMAND:?PI_ACP_PI_COMMAND must name the Pi executable}"
+
+export PI_ACP_PI_COMMAND
+exec "$PI_ACP_COMMAND" "$@"

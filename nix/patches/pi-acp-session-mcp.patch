@@ -1,0 +1,439 @@
+diff -ruN --exclude=node_modules --exclude=dist --exclude=AGENTS.md a/README.md b/README.md
+--- a/README.md	1969-12-31 16:00:01
++++ b/README.md	2026-11-01 11:18:51
+@@ -30,6 +30,9 @@
+   - Requires a pi version whose `get_session_stats` response includes `contextUsage`; otherwise no usage is reported
+   - Right after compaction pi may not have a trustworthy token count yet, so the client keeps the previous value until the next model response
+ - Skills are loaded by pi directly and are available in ACP sessions
++- ACP session MCP servers are registered with pi for the session
++  - stdio and streamable HTTP transports are supported
++  - client-supplied tools use direct exposure so ACP clients can render and authorize their calls
+ - (Zed) `pi-acp` emits “startup info” block into the session (pi version, context, skills, prompts, extensions - similar to `pi` in the terminal). You can disable it by setting `quietStartup: true` in pi settings (`~/.pi/agent/settings.json` or `<project>/.pi/settings.json`). When `quietStartup` is enabled, `pi-acp` will still emit a 'New version available' message if the installed pi version is outdated.
+ - (Zed) Session history is supported in Zed starting with [`v0.225.0`](https://zed.dev/releases/preview/0.225.0). Session loading / history maps to pi's session files. Sessions can be resumed both in `pi` and in the ACP client.
+
+@@ -199,7 +202,7 @@
+ ## Limitations
+
+ - No ACP filesystem delegation (`fs/*`) and no ACP terminal delegation (`terminal/*`). pi reads/writes and executes locally.
+-- MCP servers are accepted in ACP params and stored in session state, but not wired through to pi in this adapter. If you use [pi MCP adapter](https://github.com/nicobailon/pi-mcp-adapter) it will be available in the ACP client.
++- Legacy SSE and experimental ACP-transport MCP servers are not supported. Use stdio or streamable HTTP.
+ - Assistant streaming is currently sent as `agent_message_chunk` (no separate thought stream).
+ - Queue is implemented client-side and should work like pi's `one-at-a-time`
+ - ~~ACP clients don't yet suport session history, but ACP sessions from `pi-acp` can be `/resume`d in pi directly~~
+diff -ruN --exclude=node_modules --exclude=dist --exclude=AGENTS.md a/src/acp/agent.ts b/src/acp/agent.ts
+--- a/src/acp/agent.ts	1969-12-31 16:00:01
++++ b/src/acp/agent.ts	2026-11-01 11:20:11
+@@ -27,6 +27,7 @@
+ import { SessionManager, type PiAcpSession } from './session.js'
+ import { SessionStore } from './session-store.js'
+ import { PiRpcProcess } from '../pi-rpc/process.js'
++import { PiRpcMcpServerError } from '../pi-rpc/mcp-servers.js'
+ import { listPiSessions, findPiSession } from './pi-sessions.js'
+ import { normalizePiAssistantText, normalizePiMessageText } from './translate/pi-messages.js'
+ import { toolResultToText } from './translate/pi-tools.js'
+@@ -200,12 +201,16 @@
+         proc = await PiRpcProcess.spawn({
+           cwd,
+           sessionPath: stored.sessionFile,
+-          piCommand: process.env.PI_ACP_PI_COMMAND
++          piCommand: process.env.PI_ACP_PI_COMMAND,
++          ...(opts?.mcpServers?.length ? { mcpServers: opts.mcpServers } : {})
+         })
+       } catch (e: any) {
+         if (e?.name === 'PiRpcSpawnError') {
+           throw RequestError.internalError({ code: e?.code }, String(e?.message ?? e))
+         }
++        if (e instanceof PiRpcMcpServerError) {
++          throw RequestError.invalidParams(e.message)
++        }
+         throw e
+       }
+
+@@ -252,7 +257,7 @@
+       }),
+       agentCapabilities: {
+         loadSession: true,
+-        mcpCapabilities: { http: false, sse: false },
++        mcpCapabilities: { http: true, sse: false },
+         promptCapabilities: {
+           image: true,
+           audio: false,
+@@ -278,7 +283,6 @@
+     const fileCommands = loadSlashCommands(params.cwd)
+     const enableSkillCommands = getEnableSkillCommands(params.cwd)
+
+-    // Pi doesn't support mcpServers, but we accept and store.
+     const session = await this.sessions.create({
+       cwd: params.cwd,
+       mcpServers: params.mcpServers,
+diff -ruN --exclude=node_modules --exclude=dist --exclude=AGENTS.md a/src/acp/session.ts b/src/acp/session.ts
+--- a/src/acp/session.ts	1969-12-31 16:00:01
++++ b/src/acp/session.ts	2026-11-01 11:20:06
+@@ -18,6 +18,7 @@
+   type PiRpcEvent,
+   type PiSessionStats
+ } from '../pi-rpc/process.js'
++import { PiRpcMcpServerError } from '../pi-rpc/mcp-servers.js'
+ import { maybeAuthRequiredError } from './auth-required.js'
+ import { SessionStore } from './session-store.js'
+ import { expandSlashCommand, type FileSlashCommand } from './slash-commands.js'
+@@ -212,11 +213,15 @@
+     try {
+       proc = await PiRpcProcess.spawn({
+         cwd: params.cwd,
+-        piCommand: params.piCommand
++        piCommand: params.piCommand,
++        ...(params.mcpServers.length > 0 ? { mcpServers: params.mcpServers } : {})
+       })
+     } catch (e) {
+       if (e instanceof PiRpcSpawnError) {
+         throw RequestError.internalError({ code: e.code }, e.message)
++      }
++      if (e instanceof PiRpcMcpServerError) {
++        throw RequestError.invalidParams(e.message)
+       }
+       throw e
+     }
+diff -ruN --exclude=node_modules --exclude=dist --exclude=AGENTS.md a/src/pi-rpc/mcp-servers.ts b/src/pi-rpc/mcp-servers.ts
+--- a/src/pi-rpc/mcp-servers.ts	1969-12-31 16:00:00
++++ b/src/pi-rpc/mcp-servers.ts	2026-11-01 11:19:13
+@@ -0,0 +1,73 @@
++import type { McpServer } from '@agentclientprotocol/sdk'
++
++export const SESSION_MCP_SERVERS_ENV = 'PI_ACP_SESSION_MCP_SERVERS'
++
++export type PiMcpServerConfig = {
++  command?: string
++  args?: string[]
++  env?: Record<string, string>
++  url?: string
++  headers?: Record<string, string>
++  exposure: 'direct'
++}
++
++export type PiMcpServerRegistration = {
++  name: string
++  config: PiMcpServerConfig
++}
++
++export class PiRpcMcpServerError extends Error {
++  constructor(message: string) {
++    super(message)
++    this.name = 'PiRpcMcpServerError'
++  }
++}
++
++function safeServerName(name: string, index: number, used: Set<string>): string {
++  const normalized = name.replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '') || `acp-${index + 1}`
++  let candidate = normalized
++  let suffix = 2
++
++  while (used.has(candidate.replaceAll('-', '_'))) {
++    candidate = `${normalized}-${suffix}`
++    suffix += 1
++  }
++
++  used.add(candidate.replaceAll('-', '_'))
++  return candidate
++}
++
++export function toPiMcpServerRegistrations(servers: McpServer[]): PiMcpServerRegistration[] {
++  const usedNames = new Set<string>()
++
++  return servers.map((server, index) => {
++    const name = safeServerName(server.name, index, usedNames)
++
++    if ('command' in server) {
++      return {
++        name,
++        config: {
++          command: server.command,
++          args: server.args,
++          env: Object.fromEntries(server.env.map(variable => [variable.name, variable.value])),
++          exposure: 'direct'
++        }
++      }
++    }
++
++    if (server.type === 'http') {
++      return {
++        name,
++        config: {
++          url: server.url,
++          headers: Object.fromEntries(server.headers.map(header => [header.name, header.value])),
++          exposure: 'direct'
++        }
++      }
++    }
++
++    throw new PiRpcMcpServerError(
++      `Unsupported ACP MCP transport for server ${JSON.stringify(server.name)}: ${server.type}`
++    )
++  })
++}
+diff -ruN --exclude=node_modules --exclude=dist --exclude=AGENTS.md a/src/pi-rpc/process.ts b/src/pi-rpc/process.ts
+--- a/src/pi-rpc/process.ts	1969-12-31 16:00:01
++++ b/src/pi-rpc/process.ts	2026-11-01 11:17:49
+@@ -1,7 +1,10 @@
++import type { McpServer } from '@agentclientprotocol/sdk'
+ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
+ import * as readline from 'node:readline'
++import { fileURLToPath } from 'node:url'
+ import crossSpawn from 'cross-spawn'
+ import { getPiCommand, shouldUseShellForPiCommand } from './command.js'
++import { SESSION_MCP_SERVERS_ENV, toPiMcpServerRegistrations } from './mcp-servers.js'
+
+ export class PiRpcSpawnError extends Error {
+   /** Underlying spawn error code, e.g. ENOENT, EACCES */
+@@ -101,6 +104,8 @@
+   cwd: string
+   /** Optional override for `pi` executable name/path */
+   piCommand?: string
++  /** MCP servers supplied by the ACP client for this session. */
++  mcpServers?: McpServer[]
+   /** If set, pi will persist the session to this exact file (via `--session <path>`). */
+   sessionPath?: string
+ }
+@@ -162,12 +167,22 @@
+     const args = ['--mode', 'rpc', '--no-themes']
+     if (params.sessionPath) args.push('--session', params.sessionPath)
+
++    const env = { ...process.env }
++    delete env[SESSION_MCP_SERVERS_ENV]
++    const mcpServers = toPiMcpServerRegistrations(params.mcpServers ?? [])
++    if (mcpServers.length > 0) {
++      const extensionPath =
++        process.env.PI_ACP_MCP_EXTENSION_PATH ?? fileURLToPath(new URL('./session-mcp-extension.js', import.meta.url))
++      args.push('--extension', extensionPath)
++      env[SESSION_MCP_SERVERS_ENV] = JSON.stringify(mcpServers)
++    }
++
+     // Windows cmd launchers need shell escaping; direct executables use native argv.
+     const start = shouldUseShellForPiCommand(cmd) ? crossSpawn : spawn
+     const child = start(cmd, args, {
+       cwd: params.cwd,
+       stdio: 'pipe',
+-      env: process.env
++      env
+     }) as ChildProcessWithoutNullStreams
+
+     // Ensure spawn failures (e.g. ENOENT when pi isn't installed) are surfaced as a
+diff -ruN --exclude=node_modules --exclude=dist --exclude=AGENTS.md a/src/session-mcp-extension.ts b/src/session-mcp-extension.ts
+--- a/src/session-mcp-extension.ts	1969-12-31 16:00:00
++++ b/src/session-mcp-extension.ts	2026-11-01 11:17:40
+@@ -0,0 +1,15 @@
++import { SESSION_MCP_SERVERS_ENV, type PiMcpServerRegistration } from './pi-rpc/mcp-servers.js'
++
++type ExtensionApi = {
++  registerMcpServer(name: string, config: PiMcpServerRegistration['config']): void
++}
++
++export default function registerSessionMcpServers(pi: ExtensionApi): void {
++  const encoded = process.env[SESSION_MCP_SERVERS_ENV]
++  if (!encoded) return
++
++  const registrations = JSON.parse(encoded) as PiMcpServerRegistration[]
++  for (const registration of registrations) {
++    pi.registerMcpServer(registration.name, registration.config)
++  }
++}
+diff -ruN --exclude=node_modules --exclude=dist --exclude=AGENTS.md a/test/unit/mcp-servers.test.ts b/test/unit/mcp-servers.test.ts
+--- a/test/unit/mcp-servers.test.ts	1969-12-31 16:00:00
++++ b/test/unit/mcp-servers.test.ts	2026-11-01 11:19:13
+@@ -0,0 +1,99 @@
++import test from 'node:test'
++import assert from 'node:assert/strict'
++import type { McpServer } from '@agentclientprotocol/sdk'
++import registerSessionMcpServers from '../../src/session-mcp-extension.js'
++import {
++  PiRpcMcpServerError,
++  SESSION_MCP_SERVERS_ENV,
++  toPiMcpServerRegistrations
++} from '../../src/pi-rpc/mcp-servers.js'
++
++test('toPiMcpServerRegistrations converts stdio and HTTP servers for Pi', () => {
++  const registrations = toPiMcpServerRegistrations([
++    {
++      name: 'SolidCraft app',
++      command: '/Applications/SolidCraft.app/Contents/MacOS/solidcraft-cli',
++      args: ['mcp', '--connect', '127.0.0.1:27878'],
++      env: [
++        { name: 'FIRST', value: 'one' },
++        { name: 'SECOND', value: 'two' }
++      ]
++    },
++    {
++      type: 'http',
++      name: 'docs',
++      url: 'https://example.invalid/mcp',
++      headers: [{ name: 'Authorization', value: 'Bearer test' }]
++    }
++  ] as McpServer[])
++
++  assert.deepEqual(registrations, [
++    {
++      name: 'SolidCraft-app',
++      config: {
++        command: '/Applications/SolidCraft.app/Contents/MacOS/solidcraft-cli',
++        args: ['mcp', '--connect', '127.0.0.1:27878'],
++        env: { FIRST: 'one', SECOND: 'two' },
++        exposure: 'direct'
++      }
++    },
++    {
++      name: 'docs',
++      config: {
++        url: 'https://example.invalid/mcp',
++        headers: { Authorization: 'Bearer test' },
++        exposure: 'direct'
++      }
++    }
++  ])
++})
++
++test('toPiMcpServerRegistrations produces distinct Pi-safe names', () => {
++  const registrations = toPiMcpServerRegistrations([
++    { name: 'same-name', command: 'one', args: [], env: [] },
++    { name: 'same_name', command: 'two', args: [], env: [] },
++    { name: '***', command: 'three', args: [], env: [] }
++  ])
++
++  assert.deepEqual(
++    registrations.map(registration => registration.name),
++    ['same-name', 'same_name-2', 'acp-3']
++  )
++})
++
++test('toPiMcpServerRegistrations rejects unsupported transports', () => {
++  assert.throws(
++    () =>
++      toPiMcpServerRegistrations([{ type: 'sse', name: 'legacy', url: 'https://example.invalid/sse', headers: [] }]),
++    (error: unknown) => error instanceof PiRpcMcpServerError && error.message.includes('legacy')
++  )
++})
++
++test('session MCP extension registers serialized servers', () => {
++  const previous = process.env[SESSION_MCP_SERVERS_ENV]
++  const registered: unknown[] = []
++  process.env[SESSION_MCP_SERVERS_ENV] = JSON.stringify([
++    {
++      name: 'solidcraft-app',
++      config: { command: '/tmp/solidcraft-cli', args: ['mcp'], env: {}, exposure: 'direct' }
++    }
++  ])
++
++  try {
++    registerSessionMcpServers({
++      registerMcpServer(name, config) {
++        registered.push({ name, config })
++      }
++    })
++  } finally {
++    if (previous === undefined) delete process.env[SESSION_MCP_SERVERS_ENV]
++    else process.env[SESSION_MCP_SERVERS_ENV] = previous
++  }
++
++  assert.deepEqual(registered, [
++    {
++      name: 'solidcraft-app',
++      config: { command: '/tmp/solidcraft-cli', args: ['mcp'], env: {}, exposure: 'direct' }
++    }
++  ])
++})
+diff -ruN --exclude=node_modules --exclude=dist --exclude=AGENTS.md a/test/unit/pi-rpc-mcp-servers.test.ts b/test/unit/pi-rpc-mcp-servers.test.ts
+--- a/test/unit/pi-rpc-mcp-servers.test.ts	1969-12-31 16:00:00
++++ b/test/unit/pi-rpc-mcp-servers.test.ts	2026-11-01 11:19:13
+@@ -0,0 +1,78 @@
++import test from 'node:test'
++import assert from 'node:assert/strict'
++import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
++import { tmpdir } from 'node:os'
++import { join } from 'node:path'
++import { PiRpcProcess } from '../../src/pi-rpc/process.js'
++import { SESSION_MCP_SERVERS_ENV } from '../../src/pi-rpc/mcp-servers.js'
++
++function writeFakePi(root: string): string {
++  const launcher = join(root, 'pi')
++  writeFileSync(
++    launcher,
++    [
++      '#!/usr/bin/env node',
++      "const { writeFileSync } = require('node:fs')",
++      "const readline = require('node:readline')",
++      'writeFileSync(process.env.PI_ACP_MCP_TEST_LOG, JSON.stringify({ args: process.argv.slice(2), servers: process.env.PI_ACP_SESSION_MCP_SERVERS ?? null }))',
++      "readline.createInterface({ input: process.stdin }).on('line', line => {",
++      '  const command = JSON.parse(line)',
++      "  process.stdout.write(JSON.stringify({ type: 'response', id: command.id, command: command.type, success: true, data: {} }) + '\\n')",
++      '})'
++    ].join('\n')
++  )
++  chmodSync(launcher, 0o755)
++  return launcher
++}
++
++test('PiRpcProcess passes ACP MCP servers through the session extension', async () => {
++  const root = mkdtempSync(join(tmpdir(), 'pi-acp-mcp-'))
++  const launcher = writeFakePi(root)
++  const log = join(root, 'launch.json')
++  const extension = join(root, 'session-mcp-extension.js')
++  const previousLog = process.env.PI_ACP_MCP_TEST_LOG
++  const previousExtension = process.env.PI_ACP_MCP_EXTENSION_PATH
++  const previousServers = process.env[SESSION_MCP_SERVERS_ENV]
++  process.env.PI_ACP_MCP_TEST_LOG = log
++  process.env.PI_ACP_MCP_EXTENSION_PATH = extension
++  process.env[SESSION_MCP_SERVERS_ENV] = 'stale-parent-value'
++
++  try {
++    const proc = await PiRpcProcess.spawn({
++      cwd: root,
++      piCommand: launcher,
++      mcpServers: [
++        {
++          name: 'solidcraft-app',
++          command: '/Applications/SolidCraft.app/Contents/MacOS/solidcraft-cli',
++          args: ['mcp'],
++          env: [{ name: 'SOLIDCRAFT_CONTROL_PORT', value: '27878' }]
++        }
++      ]
++    })
++    proc.dispose()
++
++    const launch = JSON.parse(readFileSync(log, 'utf8'))
++    assert.deepEqual(launch.args, ['--mode', 'rpc', '--no-themes', '--extension', extension])
++    assert.deepEqual(JSON.parse(launch.servers), [
++      {
++        name: 'solidcraft-app',
++        config: {
++          command: '/Applications/SolidCraft.app/Contents/MacOS/solidcraft-cli',
++          args: ['mcp'],
++          env: { SOLIDCRAFT_CONTROL_PORT: '27878' },
++          exposure: 'direct'
++        }
++      }
++    ])
++  } finally {
++    if (previousLog === undefined) delete process.env.PI_ACP_MCP_TEST_LOG
++    else process.env.PI_ACP_MCP_TEST_LOG = previousLog
++    if (previousExtension === undefined) delete process.env.PI_ACP_MCP_EXTENSION_PATH
++    else process.env.PI_ACP_MCP_EXTENSION_PATH = previousExtension
++    if (previousServers === undefined) delete process.env[SESSION_MCP_SERVERS_ENV]
++    else process.env[SESSION_MCP_SERVERS_ENV] = previousServers
++    await new Promise(resolve => setTimeout(resolve, 30))
++    rmSync(root, { recursive: true, force: true })
++  }
++})
+diff -ruN --exclude=node_modules --exclude=dist --exclude=AGENTS.md a/tsup.config.ts b/tsup.config.ts
+--- a/tsup.config.ts	1969-12-31 16:00:01
++++ b/tsup.config.ts	2026-11-01 11:18:11
+@@ -1,7 +1,10 @@
+ import { defineConfig } from 'tsup'
+
+ export default defineConfig({
+-  entry: ['src/index.ts'],
++  entry: {
++    index: 'src/index.ts',
++    'session-mcp-extension': 'src/session-mcp-extension.ts'
++  },
+   format: ['esm'],
+   platform: 'node',
+   target: 'node22',

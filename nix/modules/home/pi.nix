@@ -74,6 +74,15 @@ let
     pkgs.yt-dlp
   ];
   piExtraPackages = commonExtraPackages ++ cfg.extraPackages;
+  piAcpPackage = pkgs.callPackage ../../packages/pi-acp.nix { };
+  piAcpSolidcraft = pkgs.writeShellApplication {
+    name = "pi-acp-solidcraft";
+    text = ''
+      export PI_ACP_COMMAND=${lib.escapeShellArg "${piAcpPackage}/bin/pi-acp"}
+      export PI_ACP_PI_COMMAND=${lib.escapeShellArg "${pkgs.pi-coding-agent}/bin/pi"}
+      ${lib.removePrefix "#!/usr/bin/env bash\n" (builtins.readFile ../../../bin/pi-acp-solidcraft)}
+    '';
+  };
   rosePineVariants = [
     "rose-pine"
     "rose-pine-moon"
@@ -133,6 +142,8 @@ in
       description = "Profile-specific skills added to the common store-managed skill set";
     };
 
+    solidcraft.enable = lib.mkEnableOption "the SolidCraft Pi ACP bridge";
+
     mcpPermissions.trustedServers = lib.mkOption {
       inherit (jsonFormat) type;
       default = { };
@@ -164,6 +175,8 @@ in
     };
 
     home = {
+      packages = lib.optional cfg.solidcraft.enable piAcpPackage;
+
       file = {
         ".agents/AGENTS.md".source = instructionsFile;
         ".pi/agent/themes/rose-pine.json".text = builtins.toJSON roseThemes."rose-pine";
@@ -220,7 +233,10 @@ in
         ".pi/agent/npm/node_modules/pi-web-access/node_modules/@earendil-works/pi-coding-agent".source =
           "${pkgs.pi-coding-agent}/lib/node_modules/pi-monorepo";
       }
-      // skillFiles;
+      // skillFiles
+      // lib.optionalAttrs cfg.solidcraft.enable {
+        ".local/bin/pi-acp-solidcraft".source = "${piAcpSolidcraft}/bin/pi-acp-solidcraft";
+      };
 
       activation = {
         writePiGuardrailsConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
