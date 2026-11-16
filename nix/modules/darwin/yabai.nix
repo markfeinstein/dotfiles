@@ -3,8 +3,7 @@
   lib,
   yabaiInput,
   ...
-}:
-let
+}: let
   primaryUser = config.system.primaryUser;
   nightlyPin = builtins.fromJSON (builtins.readFile "${yabaiInput}/nix/nightly.json");
   nightlyAvailable = builtins.all (value: value != null) [
@@ -28,9 +27,11 @@ let
       follow = true;
     };
   };
-  applicationRules = lib.mapAttrsToList (
-    label: rule: { inherit label; } // rule
-  ) config.dotfiles.yabai.applicationRules;
+  applicationRules =
+    lib.mapAttrsToList (
+      label: rule: {inherit label;} // rule
+    )
+    config.dotfiles.yabai.applicationRules;
 
   rexApplication.bundle_id = "com.superlogical.rex";
   rexSettingsWindow.title_prefix = "Settings - ";
@@ -50,9 +51,8 @@ let
     inherit key modifiers;
     cases = consumeAction action;
   };
-  keyBindingNoRepeat =
-    key: modifiers: action:
-    (keyBinding key modifiers action) // { repeat = false; };
+  keyBindingNoRepeat = key: modifiers: action:
+    (keyBinding key modifiers action) // {repeat = false;};
   keycodeBinding = keycode: modifiers: action: {
     inherit keycode modifiers;
     cases = consumeAction action;
@@ -161,123 +161,129 @@ let
   ];
   robustFocusBinding = key: direction: {
     inherit key;
-    modifiers = [ "ctrl" ];
+    modifiers = ["ctrl"];
     cases = robustFocusCases direction;
   };
-  defaultKeyboardBindings = [
-    {
-      key = "h";
-      modifiers = [ "cmd" ];
-      repeat = false;
-      cases = [
-        {
-          application = rexApplication;
-          disposition = "remap";
-          action = {
-            type = "synthesize_key";
-            key = "h";
-            modifiers = [
-              "ctrl"
-              "alt"
-              "cmd"
-            ];
-          };
-        }
-        { disposition = "consume_only"; }
-      ];
-    }
-  ]
-  ++ map (item: robustFocusBinding item.key item.direction) directionalKeys
-  ++ [
-    {
-      key = "backspace";
-      modifiers = [ "ctrl" ];
-      cases = robustFocusCases "west";
-    }
-  ]
-  ++ map (item: keyBinding item.key [ "alt" ] (focusAction item.direction false)) directionalKeys
-  ++ map (item: keyBinding item.key [ "alt" "ctrl" ] (warpAction item.direction)) directionalKeys
-  ++ [
-    (keyBindingNoRepeat "s" [ "alt" ] { type = "cycle_space_layout"; })
-    (keyBindingNoRepeat "r" [ "alt" ] {
-      type = "rotate_space";
-      degrees = 90;
-    })
-    (keyBindingNoRepeat "space" [ "alt" "shift" ] { type = "toggle_floating"; })
-    (keyBindingNoRepeat "f" [ "alt" ] { type = "toggle_zoom_fullscreen"; })
-    (keyBindingNoRepeat "f" [ "alt" "ctrl" ] { type = "toggle_zoom_fullscreen"; })
-    (keycodeBinding "0x1B" [ "alt" ] {
-      type = "adaptive_resize";
-      direction = "shrink";
-    })
-    (keycodeBinding "0x18" [ "alt" ] {
-      type = "adaptive_resize";
-      direction = "grow";
-    })
-    (keyBinding "left" [ "ctrl" ] {
-      type = "focus_occupied_space";
-      direction = "previous";
-    })
-    (keyBinding "right" [ "ctrl" ] {
-      type = "focus_occupied_space";
-      direction = "next";
-    })
-  ]
-  ++ lib.concatMap (workspace: [
-    (keycodeBinding workspace.keycode [ "ctrl" ] {
-      type = "focus_space";
-      inherit (workspace) index;
-    })
-    (keycodeBinding workspace.keycode
-      [ "alt" "ctrl" ]
-      [
-        {
-          type = "move_window_to_space";
-          inherit (workspace) index;
-        }
-        {
-          type = "focus_space";
-          inherit (workspace) index;
-        }
-      ]
-    )
-  ]) workspaceKeys
-  ++ [
-    (transitionBinding "r" [ "alt" "ctrl" ] "resize")
-    (keycodeTransitionBinding "0x29" [ "alt" "shift" ] "service")
-  ];
+  defaultKeyboardBindings =
+    [
+      {
+        key = "h";
+        modifiers = ["cmd"];
+        repeat = false;
+        cases = [
+          {
+            application = rexApplication;
+            disposition = "remap";
+            action = {
+              type = "synthesize_key";
+              key = "h";
+              modifiers = [
+                "ctrl"
+                "alt"
+                "cmd"
+              ];
+            };
+          }
+          {disposition = "consume_only";}
+        ];
+      }
+    ]
+    ++ map (item: robustFocusBinding item.key item.direction) directionalKeys
+    ++ [
+      {
+        key = "backspace";
+        modifiers = ["ctrl"];
+        cases = robustFocusCases "west";
+      }
+    ]
+    ++ map (item: keyBinding item.key ["alt"] (focusAction item.direction false)) directionalKeys
+    ++ map (item: keyBinding item.key ["alt" "ctrl"] (warpAction item.direction)) directionalKeys
+    ++ [
+      (keyBindingNoRepeat "s" ["alt"] {type = "cycle_space_layout";})
+      (keyBindingNoRepeat "r" ["alt"] {
+        type = "rotate_space";
+        degrees = 90;
+      })
+      (keyBindingNoRepeat "space" ["alt" "shift"] {type = "toggle_floating";})
+      (keyBindingNoRepeat "f" ["alt"] {type = "toggle_zoom_fullscreen";})
+      (keyBindingNoRepeat "f" ["alt" "ctrl"] {type = "toggle_zoom_fullscreen";})
+      (keycodeBinding "0x1B" ["alt"] {
+        type = "adaptive_resize";
+        direction = "shrink";
+      })
+      (keycodeBinding "0x18" ["alt"] {
+        type = "adaptive_resize";
+        direction = "grow";
+      })
+      (keyBinding "left" ["ctrl"] {
+        type = "focus_occupied_space";
+        direction = "previous";
+      })
+      (keyBinding "right" ["ctrl"] {
+        type = "focus_occupied_space";
+        direction = "next";
+      })
+    ]
+    ++ lib.concatMap (workspace: [
+      (keycodeBinding workspace.keycode ["ctrl"] {
+        type = "focus_space";
+        inherit (workspace) index;
+      })
+      (
+        keycodeBinding workspace.keycode
+        ["alt" "ctrl"]
+        [
+          {
+            type = "move_window_to_space";
+            inherit (workspace) index;
+          }
+          {
+            type = "focus_space";
+            inherit (workspace) index;
+          }
+        ]
+      )
+    ])
+    workspaceKeys
+    ++ [
+      (transitionBinding "r" ["alt" "ctrl"] "resize")
+      (keycodeTransitionBinding "0x29" ["alt" "shift"] "service")
+    ];
   resizeModeBindings =
     map (
       item:
-      keyBinding item.key [ ] {
-        type = "adaptive_resize";
-        inherit (item) direction;
-      }
-    ) directionalKeys
-    ++ [
-      (transitionBinding "return" [ ] "default")
-      (transitionBinding "escape" [ ] "default")
-    ];
-  serviceModeBindings = [
-    (keyBindingNoRepeat "escape" [ ] { type = "reload_configuration"; })
-    (transitionActionBinding "return" [ ] "default" {
-      type = "restart_service";
-      label = "com.asmvik.yabai";
-    })
-    (keyBindingNoRepeat "r"
-      [ ]
-      [
-        {
-          type = "set_space_layout";
-          layout = "bsp";
+        keyBinding item.key [] {
+          type = "adaptive_resize";
+          inherit (item) direction;
         }
-        { type = "balance_space"; }
-      ]
     )
-    (keyBindingNoRepeat "f" [ ] { type = "toggle_floating"; })
-    (keyBindingNoRepeat "backspace" [ ] { type = "close_other_windows"; })
-  ]
-  ++ map (item: keyBinding item.key [ "alt" "shift" ] (warpAction item.direction)) directionalKeys;
+    directionalKeys
+    ++ [
+      (transitionBinding "return" [] "default")
+      (transitionBinding "escape" [] "default")
+    ];
+  serviceModeBindings =
+    [
+      (keyBindingNoRepeat "escape" [] {type = "reload_configuration";})
+      (transitionActionBinding "return" [] "default" {
+        type = "restart_service";
+        label = "com.asmvik.yabai";
+      })
+      (
+        keyBindingNoRepeat "r"
+        []
+        [
+          {
+            type = "set_space_layout";
+            layout = "bsp";
+          }
+          {type = "balance_space";}
+        ]
+      )
+      (keyBindingNoRepeat "f" [] {type = "toggle_floating";})
+      (keyBindingNoRepeat "backspace" [] {type = "close_other_windows";})
+    ]
+    ++ map (item: keyBinding item.key ["alt" "shift"] (warpAction item.direction)) directionalKeys;
   yabaiKeyboard = {
     enabled = true;
     bindings = defaultKeyboardBindings;
@@ -301,7 +307,7 @@ let
       layout = "bsp";
       single_window_width_ratio = 0.96;
       single_window_min_width = 1200;
-      single_window_max_width = 2800;
+      single_window_max_width = 3200;
       split_type = "auto";
       window_placement = "second_child";
       window_insertion_point = "focused";
@@ -352,9 +358,9 @@ let
         match.index = 2;
         settings.split_ratio = 0.6;
         scaffold = [
-          { pattern = "Mail"; }
-          { pattern = "Calendar"; }
-          { pattern = "Messages"; }
+          {pattern = "Mail";}
+          {pattern = "Calendar";}
+          {pattern = "Messages";}
         ];
       }
       {
@@ -366,58 +372,61 @@ let
       }
     ];
     keyboard = yabaiKeyboard;
-    rules = [
-      (unmanagedRule "bambu-studio-float" "Bambu Studio")
-      (unmanagedRule "system-settings" "System Settings")
-      (unmanagedRule "finder" "Finder")
-      (unmanagedRule "1password" "1Password")
-      {
-        label = "obsidian-settings";
-        match = {
-          app.pattern = "Obsidian";
-          title.pattern = "^Settings - ";
-        };
-        effects.manage = false;
-      }
-      (unmanagedRule "calculator" "Calculator")
-      (unmanagedRule "activity-monitor" "Activity Monitor")
-      (unmanagedRule "archive-utility" "Archive Utility")
-      (unmanagedRule "digital-color-meter" "Digital Color Meter")
-      (unmanagedRule "font-book" "Font Book")
-      (unmanagedRule "disk-utility" "Disk Utility")
-      (unmanagedRule "keychain-access" "Keychain Access")
-      (unmanagedRule "system-information" "System Information")
-    ]
-    ++ applicationRules
-    ++ lib.optionals config.dotfiles.yabai.fixedSpaceTargets [
-      (spaceRule "facetime" "FaceTime" 1)
-      (spaceRule "teams" "Microsoft Teams" 1)
-      (spaceRule "teams2" "Microsoft Teams.*" 1)
-      (spaceRule "zoom" "zoom.us" 1)
-      (spaceRule "outlook" "Microsoft Outlook" 2)
-      (spaceRule "mail" "Mail" 2)
-      (spaceRule "calendar" "Calendar" 2)
-      (spaceRule "slack" "Slack" 2)
-      (spaceRule "messages" "Messages" 2)
-      (spaceRule "terminal" "Terminal" 3)
-      (spaceRule "wezterm" "WezTerm" 3)
-      (spaceRule "safari" "Safari" 4)
-      (spaceRule "bambu-studio-space" "Bambu Studio" 5)
-      (spaceRule "obsidian" "Obsidian" 9)
-      (spaceRule "reminders" "Reminders" 9)
-      (spaceRule "things" "Things" 9)
-    ];
+    rules =
+      [
+        (unmanagedRule "bambu-studio-float" "Bambu Studio")
+        (unmanagedRule "system-settings" "System Settings")
+        (unmanagedRule "finder" "Finder")
+        (unmanagedRule "1password" "1Password")
+        {
+          label = "obsidian-settings";
+          match = {
+            app.pattern = "Obsidian";
+            title.pattern = "^Settings - ";
+          };
+          effects.manage = false;
+        }
+        (unmanagedRule "calculator" "Calculator")
+        (unmanagedRule "activity-monitor" "Activity Monitor")
+        (unmanagedRule "archive-utility" "Archive Utility")
+        (unmanagedRule "digital-color-meter" "Digital Color Meter")
+        (unmanagedRule "font-book" "Font Book")
+        (unmanagedRule "disk-utility" "Disk Utility")
+        (unmanagedRule "keychain-access" "Keychain Access")
+        (unmanagedRule "system-information" "System Information")
+      ]
+      ++ applicationRules
+      ++ lib.optionals config.dotfiles.yabai.fixedSpaceTargets [
+        (spaceRule "facetime" "FaceTime" 1)
+        (spaceRule "teams" "Microsoft Teams" 1)
+        (spaceRule "teams2" "Microsoft Teams.*" 1)
+        (spaceRule "zoom" "zoom.us" 1)
+        (spaceRule "outlook" "Microsoft Outlook" 2)
+        (spaceRule "mail" "Mail" 2)
+        (spaceRule "calendar" "Calendar" 2)
+        (spaceRule "slack" "Slack" 2)
+        (spaceRule "messages" "Messages" 2)
+        (spaceRule "terminal" "Terminal" 3)
+        (spaceRule "wezterm" "WezTerm" 3)
+        (spaceRule "safari" "Safari" 4)
+        (spaceRule "bambu-studio-space" "Bambu Studio" 5)
+        (spaceRule "obsidian" "Obsidian" 9)
+        (spaceRule "reminders" "Reminders" 9)
+        (spaceRule "things" "Things" 9)
+      ];
   };
   yabaiNativeConfigJson = builtins.toJSON yabaiNativeConfig;
-in
-{
+in {
   options.dotfiles.yabai = {
     installSource = lib.mkOption {
       type = lib.types.enum [
         "nightly"
         "release"
       ];
-      default = if nightlyAvailable then "nightly" else "release";
+      default =
+        if nightlyAvailable
+        then "nightly"
+        else "release";
       description = ''
         Signed Yabai artifact channel. The default follows the latest verified
         nightly pinned by the Yabai input and falls back to the signed release
@@ -444,7 +453,7 @@ in
           };
         }
       );
-      default = { };
+      default = {};
       internal = true;
       description = "Native yabai rules contributed by modules that manage the matching applications.";
     };
@@ -460,7 +469,7 @@ in
     dotfiles.yabai.nativeConfigJson = yabaiNativeConfigJson;
 
     home-manager.users.${primaryUser} = {
-      imports = [ yabaiInput.homeManagerModules.yabai ];
+      imports = [yabaiInput.homeManagerModules.yabai];
 
       programs.yabai = {
         enable = true;
