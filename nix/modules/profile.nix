@@ -12,6 +12,18 @@ let
   profileAssertions = [
     {
       assertion = lib.all (
+        vault: lib.hasPrefix "/" vault.path || lib.hasPrefix "~/" vault.path
+      ) config.profile.obsidian.vaults;
+      message = "profile.obsidian.vaults paths must be absolute or start with ~/";
+    }
+    {
+      assertion =
+        lib.length (lib.unique (map (vault: vault.name) config.profile.obsidian.vaults))
+        == lib.length config.profile.obsidian.vaults;
+      message = "profile.obsidian.vaults names must be unique";
+    }
+    {
+      assertion = lib.all (
         selector: selector.item != null || selector.vault != null || selector.account != null
       ) config.profile.ssh.onePasswordAgent.keys;
       message = "profile.ssh.onePasswordAgent.keys entries must select an item, vault, or account";
@@ -29,6 +41,25 @@ in
       );
       default = null;
       description = "Selected configuration profile";
+    };
+
+    obsidian.vaults = lib.mkOption {
+      type = lib.types.listOf (
+        lib.types.submodule {
+          options = {
+            name = lib.mkOption {
+              type = lib.types.strMatching ".+";
+              description = "Obsidian vault name";
+            };
+            path = lib.mkOption {
+              type = lib.types.strMatching ".+";
+              description = "Absolute or home-relative Obsidian vault path";
+            };
+          };
+        }
+      );
+      default = [ ];
+      description = "Profile-owned Obsidian vaults available to consuming modules";
     };
 
     ssh.onePasswordAgent = {
@@ -131,6 +162,7 @@ in
 
         users.${username}.profile = {
           inherit (config.profile) name;
+          obsidian.vaults = lib.mkDefault config.profile.obsidian.vaults;
           ssh.onePasswordAgent = {
             enable = lib.mkDefault config.profile.ssh.onePasswordAgent.enable;
             keys = lib.mkDefault config.profile.ssh.onePasswordAgent.keys;

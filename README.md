@@ -60,6 +60,21 @@ An empty selector list leaves `~/.config/1Password/ssh/agent.toml` unmanaged so
 1Password uses its default key selection. The agent remains disabled by default
 for non-Darwin Home Manager outputs.
 
+Profiles also own their reusable Obsidian vault inventory:
+
+```nix
+profile.obsidian.vaults = [
+  {
+    name = "personal";
+    path = "~/vaults/personal";
+  }
+];
+```
+
+Neovim consumes this inventory for `obsidian.nvim`, and other modules can use the
+same list without depending on editor-specific options. The default
+`obsidian.nvim` template folder is `8 - Resources/Templates` within each vault.
+
 Both profiles default to `github:markfeinstein/dotfiles/main`. Override their
 default remote sources independently when a profile should use a downstream
 flake:
