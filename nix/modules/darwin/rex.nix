@@ -76,7 +76,7 @@ in
 
     home-manager.users.${primaryUser}.targets.darwin.defaults."com.superlogical.rex" = {
       "RexAppUpdateChannel" = "snapshot";
-      "RexAppUpdateAutomation" = "install";
+      "RexAppUpdateAutomation" = "download";
       SUAutomaticallyUpdate = true;
       SUEnableAutomaticChecks = true;
       SUScheduledCheckInterval = 3600.0;
