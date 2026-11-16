@@ -202,18 +202,35 @@ let
   };
 
   obsidianConfig = {
-    workspaces = cfg.obsidian.workspaces;
+    workspaces = config.profile.obsidian.vaults;
     daily_notes = {
       folder = cfg.obsidian.dailyNotes.folder;
       date_format = cfg.obsidian.dailyNotes.dateFormat;
     };
     notes_subdir = cfg.obsidian.notesSubdir;
     templates.folder = cfg.obsidian.templates.folder;
+    capture = {
+      enabled = cfg.obsidian.capture.enable;
+      questions_folder = cfg.obsidian.capture.questionsFolder;
+      question_template = cfg.obsidian.capture.questionTemplate;
+      log_heading = cfg.obsidian.capture.logHeading;
+    };
+    references = {
+      enabled = cfg.obsidian.references.enable;
+      people_folder = cfg.obsidian.references.peopleFolder;
+    };
     autosave = {
       enabled = cfg.obsidian.autosave.enable;
       interval_ms = cfg.obsidian.autosave.intervalSeconds * 1000;
     };
   };
+
+  isVaultRelativePath =
+    path:
+    path != ""
+    && !lib.hasPrefix "/" path
+    && !lib.hasPrefix "~/" path
+    && lib.all (part: part != "..") (lib.splitString "/" path);
 
   profileLua = pkgs.writeText "dotfiles-neovim-profile.lua" (
     lib.concatStringsSep "\n" (
@@ -267,25 +284,6 @@ in
     };
 
     obsidian = {
-      workspaces = lib.mkOption {
-        type = lib.types.listOf (
-          lib.types.submodule {
-            options = {
-              name = lib.mkOption {
-                type = lib.types.str;
-                description = "Obsidian workspace name";
-              };
-              path = lib.mkOption {
-                type = lib.types.str;
-                description = "Absolute or home-relative Obsidian vault path";
-              };
-            };
-          }
-        );
-        default = [ ];
-        description = "Profile-owned Obsidian vault workspaces";
-      };
-
       dailyNotes = {
         folder = lib.mkOption {
           type = lib.types.strMatching ".+";
@@ -307,8 +305,36 @@ in
 
       templates.folder = lib.mkOption {
         type = lib.types.strMatching ".+";
-        default = "8 - Templates";
+        default = "8 - Resources/Templates";
         description = "Vault-relative folder for Obsidian templates";
+      };
+
+      capture = {
+        enable = lib.mkEnableOption "Obsidian question, answer, and daily-log capture commands";
+        questionsFolder = lib.mkOption {
+          type = lib.types.strMatching ".+";
+          default = "Questions";
+          description = "Vault-relative folder containing question notes";
+        };
+        questionTemplate = lib.mkOption {
+          type = lib.types.strMatching ".+";
+          default = "Question.md";
+          description = "Template path relative to the configured Obsidian templates folder";
+        };
+        logHeading = lib.mkOption {
+          type = lib.types.strMatching "^#+[[:space:]]+.+";
+          default = "## Log";
+          description = "Markdown heading under which timestamped capture entries are inserted";
+        };
+      };
+
+      references = {
+        enable = lib.mkEnableOption "Obsidian people and capture-prompt reference completion";
+        peopleFolder = lib.mkOption {
+          type = lib.types.strMatching ".+";
+          default = "People";
+          description = "Vault-relative folder containing person notes";
+        };
       };
 
       autosave = {
@@ -365,16 +391,12 @@ in
   config = {
     assertions = [
       {
-        assertion = lib.all (
-          workspace: lib.hasPrefix "/" workspace.path || lib.hasPrefix "~/" workspace.path
-        ) cfg.obsidian.workspaces;
-        message = "dotfiles.neovim.obsidian.workspaces paths must be absolute or start with ~/";
-      }
-      {
-        assertion =
-          lib.length (lib.unique (map (workspace: workspace.name) cfg.obsidian.workspaces))
-          == lib.length cfg.obsidian.workspaces;
-        message = "dotfiles.neovim.obsidian.workspaces names must be unique";
+        assertion = lib.all isVaultRelativePath [
+          cfg.obsidian.capture.questionsFolder
+          cfg.obsidian.capture.questionTemplate
+          cfg.obsidian.references.peopleFolder
+        ];
+        message = "Obsidian capture and reference paths must be vault-relative and may not contain '..' components";
       }
     ];
 

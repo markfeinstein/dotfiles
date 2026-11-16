@@ -1,16 +1,16 @@
 { lib, ... }: {
-  profile.name = "work";
+  profile = {
+    name = "work";
+    obsidian.vaults = lib.mkDefault [
+      {
+        name = "work";
+        path = "~/vaults/work";
+      }
+    ];
+  };
 
   dotfiles = {
-    neovim = {
-      features.ai = true;
-      obsidian.workspaces = [
-        {
-          name = "work";
-          path = "~/vaults/work";
-        }
-      ];
-    };
+    neovim.features.ai = true;
 
     pi.skills = lib.mkAfter [
       "agent-memory"

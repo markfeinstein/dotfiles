@@ -163,12 +163,108 @@ let
         system:
         let
           pkgs = pkgsFor system;
+          obsidianEnabledHome = homeConfigurations."${system}-work".extendModules {
+            modules = [
+              {
+                profile.obsidian.vaults = lib.mkForce [
+                  {
+                    name = "alpha";
+                    path = "~/vaults/alpha";
+                  }
+                  {
+                    name = "beta";
+                    path = "~/vaults/alpha-other";
+                  }
+                ];
+                dotfiles.neovim.obsidian = {
+                  dailyNotes = {
+                    folder = "Journal";
+                    dateFormat = "%Y/%m/%Y-%m-%d-%A";
+                  };
+                  templates.folder = "Templates";
+                  notesSubdir = "Inbox";
+                  capture = {
+                    enable = true;
+                    questionsFolder = "Knowledge/Questions";
+                    questionTemplate = "Question.md";
+                    logHeading = "## Activity";
+                  };
+                  references = {
+                    enable = true;
+                    peopleFolder = "Notes/People";
+                  };
+                  autosave.enable = false;
+                };
+              }
+            ];
+          };
+          obsidianNoWorkspaceHome = homeConfigurations."${system}-work".extendModules {
+            modules = [
+              {
+                profile.obsidian.vaults = lib.mkForce [ ];
+                dotfiles.neovim.obsidian = {
+                  capture.enable = true;
+                  references.enable = true;
+                };
+              }
+            ];
+          };
         in
         {
           home-personal = homeConfigurations."${system}-personal".activationPackage;
           home-work = homeConfigurations."${system}-work".activationPackage;
+          profile-obsidian = import ./tests/profile-obsidian.nix {
+            inherit
+              darwinConfigurations
+              homeConfigurations
+              lib
+              pkgs
+              system
+              ;
+          };
           marksman-binary = pkgs.runCommand "marksman-binary-check" { } ''
             ${pkgs.python3}/bin/python ${./tests/marksman-lsp.py} ${lib.getExe pkgs.marksman}
+            touch "$out"
+          '';
+          obsidian-capture = pkgs.runCommand "obsidian-capture-check" { } ''
+            run_profile_state() {
+              state="$1"
+              config="$2"
+              pack="$3"
+              profile_home="$TMPDIR/$state/home"
+              export HOME="$profile_home"
+              export XDG_CONFIG_HOME="$profile_home/.config"
+              export XDG_DATA_HOME="$profile_home/.local/share"
+              export XDG_STATE_HOME="$profile_home/.local/state"
+              export XDG_CACHE_HOME="$profile_home/.cache"
+              mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME/nvim/site/pack"
+              ln -s "$config" "$XDG_CONFIG_HOME/nvim"
+              ln -s "$pack" "$XDG_DATA_HOME/nvim/site/pack/hm"
+              DOTFILES_OBSIDIAN_EXPECT_STATE="$state" \
+                ${lib.getExe homeConfigurations."${system}-personal".config.programs.neovim.finalPackage} \
+                --headless -i NONE -n -c 'lua dofile("${./tests/obsidian-profile-state-test.lua}")'
+            }
+
+            run_profile_state \
+              disabled \
+              ${homeConfigurations."${system}-personal".config.dotfiles.neovim.finalConfigSource} \
+              ${homeConfigurations."${system}-personal".config.xdg.dataFile."nvim/site/pack/hm".source}
+            run_profile_state \
+              no-workspace \
+              ${obsidianNoWorkspaceHome.config.dotfiles.neovim.finalConfigSource} \
+              ${obsidianNoWorkspaceHome.config.xdg.dataFile."nvim/site/pack/hm".source}
+
+            export HOME="$TMPDIR/enabled/home"
+            export XDG_CONFIG_HOME="$HOME/.config"
+            export XDG_DATA_HOME="$HOME/.local/share"
+            export XDG_STATE_HOME="$HOME/.local/state"
+            export XDG_CACHE_HOME="$HOME/.cache"
+            mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME/nvim/site/pack"
+            ln -s ${obsidianEnabledHome.config.dotfiles.neovim.finalConfigSource} "$XDG_CONFIG_HOME/nvim"
+            ln -s ${obsidianEnabledHome.config.xdg.dataFile."nvim/site/pack/hm".source} "$XDG_DATA_HOME/nvim/site/pack/hm"
+            DOTFILES_OBSIDIAN_LOG_CASES=${./tests/question-log-cases.json} \
+              ${lib.getExe obsidianEnabledHome.config.programs.neovim.finalPackage} \
+              --headless -i NONE -n -c 'lua dofile("${./tests/obsidian-capture-test.lua}")'
             touch "$out"
           '';
           neovim-cached-plugins =

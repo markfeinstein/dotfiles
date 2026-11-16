@@ -1,5 +1,13 @@
 { lib, ... }: {
-  profile.name = "personal";
+  profile = {
+    name = "personal";
+    obsidian.vaults = lib.mkDefault [
+      {
+        name = "personal";
+        path = "~/vaults/personal";
+      }
+    ];
+  };
 
   dotfiles = {
     credentials.enable = true;
@@ -7,15 +15,7 @@
 
     rex.passwordPicker.enable = true;
 
-    neovim = {
-      features.ai = true;
-      obsidian.workspaces = [
-        {
-          name = "personal";
-          path = "~/vaults/personal";
-        }
-      ];
-    };
+    neovim.features.ai = true;
 
     pi = {
       skills = lib.mkAfter [
