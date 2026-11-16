@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type {
   ExtensionAPI,
+  RegisteredMcpServer,
   ToolAnnotations as PiToolAnnotations,
 } from "@earendil-works/pi-coding-agent";
 
@@ -17,9 +18,22 @@ type OAuthPolicy = {
   clientName: string;
 };
 
+type LoopbackPortArgument = { loopbackPort: true };
 type TrustedServerPolicy = {
-  exactUrl: string;
-  oauth?: OAuthPolicy;
+  allowAll: boolean;
+} & (
+  | {
+      exactUrl: string;
+      oauth?: OAuthPolicy;
+    }
+  | {
+      exactCommand: string;
+      exactArgs: ReadonlyArray<string | LoopbackPortArgument>;
+    }
+);
+
+type TrustedServer = {
+  allowAll: boolean;
 };
 
 type PermissionConfig = {
@@ -32,7 +46,7 @@ type PermissionOptions = {
   resolveTrustedServers?: (
     cwd: string,
     projectTrusted: boolean,
-  ) => ReadonlySet<string>;
+  ) => ReadonlyMap<string, TrustedServer>;
 };
 
 const CONFIG_FILE = "mcp-permissions.json";
@@ -110,6 +124,35 @@ function parseOAuthPolicy(value: unknown): OAuthPolicy | undefined {
   return { callbackUrl, clientId, clientName };
 }
 
+function parseLoopbackPortArgument(
+  value: unknown,
+): LoopbackPortArgument | undefined {
+  if (
+    !isRecord(value) ||
+    Object.keys(value).length !== 1 ||
+    value.loopbackPort !== true
+  ) {
+    return;
+  }
+  return { loopbackPort: true };
+}
+
+function parseExactArgs(
+  value: unknown,
+): ReadonlyArray<string | LoopbackPortArgument> | undefined {
+  if (!Array.isArray(value)) return;
+  const parsed: Array<string | LoopbackPortArgument> = [];
+  for (const argument of value) {
+    if (typeof argument === "string") parsed.push(argument);
+    else {
+      const loopback = parseLoopbackPortArgument(argument);
+      if (!loopback) return;
+      parsed.push(loopback);
+    }
+  }
+  return parsed;
+}
+
 export function readPermissionConfig(path: string): PermissionConfig {
   try {
     const document: unknown = JSON.parse(
@@ -120,34 +163,55 @@ export function readPermissionConfig(path: string): PermissionConfig {
     }
     const trustedServers = new Map<string, TrustedServerPolicy>();
     for (const [name, value] of Object.entries(document.trustedServers)) {
-      if (
-        !SERVER_NAME.test(name) ||
-        !isRecord(value) ||
-        typeof value.exactUrl !== "string"
-      )
+      if (!SERVER_NAME.test(name) || !isRecord(value)) continue;
+      const allowAll = value.allowAll === true;
+      if (value.allowAll !== undefined && typeof value.allowAll !== "boolean")
         continue;
-      if (!URL.canParse(value.exactUrl)) continue;
-      const endpoint = new URL(value.exactUrl);
-      const exactUrl = normalizedEndpointUrl(endpoint);
-      if (
-        !exactUrl ||
-        endpoint.protocol !== "https:" ||
-        endpoint.username ||
-        endpoint.password
-      )
+
+      if (typeof value.exactUrl === "string") {
+        if (!URL.canParse(value.exactUrl)) continue;
+        const endpoint = new URL(value.exactUrl);
+        const exactUrl = normalizedEndpointUrl(endpoint);
+        if (
+          !exactUrl ||
+          endpoint.protocol !== "https:" ||
+          endpoint.username ||
+          endpoint.password
+        )
+          continue;
+        const oauth =
+          value.oauth === undefined ? undefined : parseOAuthPolicy(value.oauth);
+        if (value.oauth !== undefined && oauth === undefined) continue;
+        if (
+          !Object.keys(value).every(
+            (key) =>
+              key === "exactUrl" || key === "oauth" || key === "allowAll",
+          )
+        )
+          continue;
+        trustedServers.set(normalizedServerName(name), {
+          exactUrl,
+          ...(oauth ? { oauth } : {}),
+          allowAll,
+        });
         continue;
-      const oauth =
-        value.oauth === undefined ? undefined : parseOAuthPolicy(value.oauth);
-      if (value.oauth !== undefined && oauth === undefined) continue;
+      }
+
+      const exactArgs = parseExactArgs(value.exactArgs);
       if (
+        typeof value.exactCommand !== "string" ||
+        !value.exactCommand.startsWith("/") ||
+        exactArgs === undefined ||
         !Object.keys(value).every(
-          (key) => key === "exactUrl" || key === "oauth",
+          (key) =>
+            key === "exactCommand" || key === "exactArgs" || key === "allowAll",
         )
       )
         continue;
       trustedServers.set(normalizedServerName(name), {
-        exactUrl,
-        ...(oauth ? { oauth } : {}),
+        exactCommand: value.exactCommand,
+        exactArgs,
+        allowAll,
       });
     }
     return { trustedServers };
@@ -194,40 +258,83 @@ function oauthMatches(
   );
 }
 
+function commonConfigMatches(config: Record<string, unknown>): boolean {
+  return (
+    isOptional(config.exposure, isExposure) &&
+    isOptional(
+      config.toolExposure,
+      (value) => isRecord(value) && Object.values(value).every(isExposure),
+    ) &&
+    isOptional(config.enabled, (value) => typeof value === "boolean") &&
+    isOptional(config.description, (value) => typeof value === "string") &&
+    isOptional(
+      config.timeout,
+      (value) => typeof value === "number" && value > 0,
+    )
+  );
+}
+
+function loopbackPortArgumentMatches(value: string): boolean {
+  const match = /^(?:127\.0\.0\.1|localhost|\[::1\]):([0-9]+)$/.exec(value);
+  if (!match) return false;
+  const port = Number(match[1]);
+  return Number.isInteger(port) && port >= 1 && port <= 65535;
+}
+
+function exactArgsMatch(
+  actual: unknown,
+  expected: ReadonlyArray<string | LoopbackPortArgument>,
+): boolean {
+  if (!Array.isArray(actual) || actual.length !== expected.length) return false;
+  return expected.every((argument, index) =>
+    typeof argument === "string"
+      ? actual[index] === argument
+      : typeof actual[index] === "string" &&
+        loopbackPortArgumentMatches(actual[index]),
+  );
+}
+
 function endpointMatches(
   config: Record<string, unknown> | undefined,
   policy: TrustedServerPolicy,
 ): boolean {
-  if (!config || typeof config.url !== "string" || !URL.canParse(config.url))
-    return false;
-  if (
-    !isOptional(
-      config.type,
-      (value) => value === "http" || value === "streamable-http",
-    ) ||
-    !isOptional(config.exposure, isExposure) ||
-    !isOptional(
-      config.toolExposure,
-      (value) => isRecord(value) && Object.values(value).every(isExposure),
-    ) ||
-    !isOptional(config.enabled, (value) => typeof value === "boolean") ||
-    !isOptional(config.description, (value) => typeof value === "string") ||
-    !isOptional(
-      config.timeout,
-      (value) => typeof value === "number" && value > 0,
-    ) ||
-    config.headers !== undefined ||
-    config.auth !== undefined ||
-    !oauthMatches(config.oauth, policy.oauth)
-  ) {
-    return false;
+  if (!config || !commonConfigMatches(config)) return false;
+  if ("exactUrl" in policy) {
+    if (typeof config.url !== "string" || !URL.canParse(config.url))
+      return false;
+    if (
+      !isOptional(
+        config.type,
+        (value) => value === "http" || value === "streamable-http",
+      ) ||
+      config.headers !== undefined ||
+      config.auth !== undefined ||
+      !oauthMatches(config.oauth, policy.oauth)
+    ) {
+      return false;
+    }
+    const endpoint = new URL(config.url);
+    return (
+      endpoint.protocol === "https:" &&
+      !endpoint.username &&
+      !endpoint.password &&
+      normalizedEndpointUrl(endpoint) === policy.exactUrl
+    );
   }
-  const endpoint = new URL(config.url);
+
   return (
-    endpoint.protocol === "https:" &&
-    !endpoint.username &&
-    !endpoint.password &&
-    normalizedEndpointUrl(endpoint) === policy.exactUrl
+    isOptional(config.type, (value) => value === "stdio") &&
+    config.command === policy.exactCommand &&
+    exactArgsMatch(config.args ?? [], policy.exactArgs) &&
+    isOptional(
+      config.env,
+      (value) => isRecord(value) && Object.keys(value).length === 0,
+    ) &&
+    config.cwd === undefined &&
+    config.url === undefined &&
+    config.headers === undefined &&
+    config.oauth === undefined &&
+    config.auth === undefined
   );
 }
 
@@ -236,8 +343,9 @@ export function resolveTrustedServers(
   cwd: string,
   projectTrusted: boolean,
   policies: ReadonlyMap<string, TrustedServerPolicy>,
-): Set<string> {
-  const trusted = new Set<string>();
+  registeredServers: readonly RegisteredMcpServer[] = [],
+): Map<string, TrustedServer> {
+  const trusted = new Map<string, TrustedServer>();
   const userConfigPath = join(homeDirectory, ".pi", "agent", "mcp.json");
   const projectConfigPath = join(cwd, ".pi", "mcp.json");
 
@@ -248,10 +356,16 @@ export function resolveTrustedServers(
     const projectDefinesEndpoint =
       projectConfig !== undefined &&
       ["url", "command", "type"].some((key) => key in projectConfig);
+    const userConfig = readMcpServer(userConfigPath, serverName);
+    const registeredConfig = registeredServers.find(
+      (server) => normalizedServerName(server.name) === serverName,
+    )?.config as Record<string, unknown> | undefined;
     const selected = projectDefinesEndpoint
       ? projectConfig
-      : readMcpServer(userConfigPath, serverName);
-    if (endpointMatches(selected, policy)) trusted.add(serverName);
+      : userConfig ?? registeredConfig;
+    if (endpointMatches(selected, policy)) {
+      trusted.set(serverName, { allowAll: policy.allowAll });
+    }
   }
   return trusted;
 }
@@ -273,11 +387,13 @@ export function evaluateMcpPermission(
   toolName: string,
   annotations: ToolAnnotations | undefined,
   serverTrusted: boolean,
+  allowAll = false,
 ): PermissionDecision {
   const call = parseNativeMcpToolName(toolName);
   if (!call) return { kind: "allow" };
   if (!serverTrusted)
     return { kind: "prompt", reason: "MCP server identity is not pinned" };
+  if (allowAll) return { kind: "allow" };
   if (PRIVACY_SENSITIVE_TOOL_NAMES.has(call.originalToolName)) {
     return {
       kind: "prompt",
@@ -347,16 +463,17 @@ export function registerMcpPermissions(
   const configPath =
     options.configPath ??
     join(homeDirectory, ".pi", "agent", "extensions", CONFIG_FILE);
-  let trustedServers = new Set<string>();
+  let trustedServers = new Map<string, TrustedServer>();
 
   pi.on("session_start", (_event, ctx) => {
-    trustedServers = new Set(
+    trustedServers = new Map(
       options.resolveTrustedServers?.(ctx.cwd, ctx.isProjectTrusted()) ??
         resolveTrustedServers(
           homeDirectory,
           ctx.cwd,
           ctx.isProjectTrusted(),
           readPermissionConfig(configPath).trustedServers,
+          pi.getMcpServers(),
         ),
     );
   });
@@ -367,10 +484,12 @@ export function registerMcpPermissions(
     const annotations = pi
       .getAllTools()
       .find((tool) => tool.name === event.toolName)?.annotations;
+    const trust = trustedServers.get(call.serverName);
     const decision = evaluateMcpPermission(
       event.toolName,
       annotations,
-      trustedServers.has(call.serverName),
+      trust !== undefined,
+      trust?.allowAll,
     );
     if (decision.kind === "allow") return;
     if (!ctx.hasUI) {
