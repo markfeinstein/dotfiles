@@ -1,0 +1,74 @@
+[
+  {
+    "name": "creates configured heading",
+    "heading": "## Activity",
+    "input": ["# Daily", "intro"],
+    "text": "new entry",
+    "time": "09:30",
+    "expected": ["# Daily", "intro", "", "## Activity", "", "- **09:30** - new entry"]
+  },
+  {
+    "name": "reuses empty placeholder",
+    "heading": "## Activity",
+    "input": ["## Activity", "", "- ", "", "> [!tip] Keep this"],
+    "text": "new entry",
+    "time": "09:30",
+    "expected": ["## Activity", "", "- **09:30** - new entry", "", "> [!tip] Keep this"]
+  },
+  {
+    "name": "recognizes legacy timestamps and preserves nested details",
+    "heading": "## Activity",
+    "input": ["## Activity", "", "- 08:00 Earlier", "  detail", "- **10:00** Later"],
+    "text": "middle",
+    "time": "09:00",
+    "expected": ["## Activity", "", "- 08:00 Earlier", "  detail", "- **09:00** - middle", "- **10:00** Later"]
+  },
+  {
+    "name": "keeps equal timestamps stable",
+    "heading": "## Activity",
+    "input": ["## Activity", "- **09:00** - first", "- [09:00] second", "- **10:00** - later"],
+    "text": "third",
+    "time": "09:00",
+    "expected": ["## Activity", "- **09:00** - first", "- [09:00] second", "- **09:00** - third", "- **10:00** - later"]
+  },
+  {
+    "name": "ignores timestamps inside fenced examples",
+    "heading": "## Activity",
+    "input": ["## Activity", "```markdown", "- **23:59** - example", "```", "- **10:00** - later"],
+    "text": "middle",
+    "time": "09:00",
+    "expected": ["## Activity", "```markdown", "- **23:59** - example", "```", "- **09:00** - middle", "- **10:00** - later"]
+  },
+  {
+    "name": "preserves untimed history and nested bullets",
+    "heading": "## Activity",
+    "input": ["## Activity", "- context", "  - 12:00 nested", "- **10:00** - later"],
+    "text": "middle",
+    "time": "09:00",
+    "expected": ["## Activity", "- context", "  - 12:00 nested", "- **09:00** - middle", "- **10:00** - later"]
+  },
+  {
+    "name": "replaces trailing placeholder before a callout",
+    "heading": "## Activity",
+    "input": ["## Activity", "- **08:00** - earlier", "-", "> [!info] Boundary"],
+    "text": "next",
+    "time": "09:00",
+    "expected": ["## Activity", "- **08:00** - earlier", "- **09:00** - next", "> [!info] Boundary"]
+  },
+  {
+    "name": "stays above the next heading",
+    "heading": "## Activity",
+    "input": ["## Activity", "- **08:00** - earlier", "## Later", "content"],
+    "text": "next",
+    "time": "09:00",
+    "expected": ["## Activity", "- **08:00** - earlier", "- **09:00** - next", "", "## Later", "content"]
+  },
+  {
+    "name": "question links use the same insertion rules",
+    "heading": "## Activity",
+    "input": ["## Activity", "- 08:00 Earlier", "- 10:00 Later"],
+    "question": "Why configurable capture",
+    "time": "09:00",
+    "expected": ["## Activity", "- 08:00 Earlier", "- **09:00** - ? [[Why configurable capture]]", "- 10:00 Later"]
+  }
+]

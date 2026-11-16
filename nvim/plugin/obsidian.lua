@@ -442,3 +442,11 @@ require("mark.obsidian_autosave").setup({
 	interval_ms = autosave.interval_ms or 30000,
 	is_vault_path = is_vault_path,
 })
+
+require("mark.obsidian_refs_blink").setup()
+local capture = obsidian_profile.capture or {}
+require("mark.obsidian_capture").setup({
+	enabled = capture.enabled == true and #vault_roots > 0,
+	ensure_loaded = ensure_obsidian_loaded,
+	profile = obsidian_profile,
+})

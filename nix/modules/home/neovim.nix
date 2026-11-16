@@ -209,11 +209,28 @@ let
     };
     notes_subdir = cfg.obsidian.notesSubdir;
     templates.folder = cfg.obsidian.templates.folder;
+    capture = {
+      enabled = cfg.obsidian.capture.enable;
+      questions_folder = cfg.obsidian.capture.questionsFolder;
+      question_template = cfg.obsidian.capture.questionTemplate;
+      log_heading = cfg.obsidian.capture.logHeading;
+    };
+    references = {
+      enabled = cfg.obsidian.references.enable;
+      people_folder = cfg.obsidian.references.peopleFolder;
+    };
     autosave = {
       enabled = cfg.obsidian.autosave.enable;
       interval_ms = cfg.obsidian.autosave.intervalSeconds * 1000;
     };
   };
+
+  isVaultRelativePath =
+    path:
+    path != ""
+    && !lib.hasPrefix "/" path
+    && !lib.hasPrefix "~/" path
+    && lib.all (part: part != "..") (lib.splitString "/" path);
 
   profileLua = pkgs.writeText "dotfiles-neovim-profile.lua" (
     lib.concatStringsSep "\n" (
@@ -292,6 +309,34 @@ in
         description = "Vault-relative folder for Obsidian templates";
       };
 
+      capture = {
+        enable = lib.mkEnableOption "Obsidian question, answer, and daily-log capture commands";
+        questionsFolder = lib.mkOption {
+          type = lib.types.strMatching ".+";
+          default = "Questions";
+          description = "Vault-relative folder containing question notes";
+        };
+        questionTemplate = lib.mkOption {
+          type = lib.types.strMatching ".+";
+          default = "Question.md";
+          description = "Template path relative to the configured Obsidian templates folder";
+        };
+        logHeading = lib.mkOption {
+          type = lib.types.strMatching "^#+[[:space:]]+.+";
+          default = "## Log";
+          description = "Markdown heading under which timestamped capture entries are inserted";
+        };
+      };
+
+      references = {
+        enable = lib.mkEnableOption "Obsidian people and capture-prompt reference completion";
+        peopleFolder = lib.mkOption {
+          type = lib.types.strMatching ".+";
+          default = "People";
+          description = "Vault-relative folder containing person notes";
+        };
+      };
+
       autosave = {
         enable =
           lib.mkEnableOption "periodic writes of modified Markdown buffers in configured Obsidian vaults"
@@ -344,6 +389,17 @@ in
   };
 
   config = {
+    assertions = [
+      {
+        assertion = lib.all isVaultRelativePath [
+          cfg.obsidian.capture.questionsFolder
+          cfg.obsidian.capture.questionTemplate
+          cfg.obsidian.references.peopleFolder
+        ];
+        message = "Obsidian capture and reference paths must be vault-relative and may not contain '..' components";
+      }
+    ];
+
     dotfiles.neovim.finalConfigSource = configSource;
 
     programs.neovim = {
