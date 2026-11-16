@@ -43,6 +43,23 @@ a compatibility contract, not a value that should automatically follow the
 installed release. Downstream modules may override it deliberately. The numeric
 nix-darwin `system.stateVersion` is a separate platform contract.
 
+On Darwin, the common profile enables the 1Password SSH agent by default. A
+profile can restrict and order the keys exposed by the agent with selectors for
+an item, vault, account, or any combination of them:
+
+```nix
+profile.ssh.onePasswordAgent.keys = [
+  {
+    item = "GitHub SSH Key";
+    vault = "Private";
+  }
+];
+```
+
+An empty selector list leaves `~/.config/1Password/ssh/agent.toml` unmanaged so
+1Password uses its default key selection. The agent remains disabled by default
+for non-Darwin Home Manager outputs.
+
 Both profiles default to `github:markfeinstein/dotfiles/main`. Override their
 default remote sources independently when a profile should use a downstream
 flake:

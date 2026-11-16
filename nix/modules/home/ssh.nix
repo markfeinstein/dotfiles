@@ -6,11 +6,20 @@
 }:
 let
   cfg = config.dotfiles.ssh.onePasswordAgent;
+  profileCfg = config.profile.ssh.onePasswordAgent;
   darwinSocket = ''"~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"'';
+  agentConfig = (pkgs.formats.toml { }).generate "1password-ssh-agent.toml" {
+    "ssh-keys" = map (
+      selector: lib.filterAttrs (_: value: value != null) selector
+    ) profileCfg.keys;
+  };
 in
 {
-  options.dotfiles.ssh.onePasswordAgent.enable =
-    lib.mkEnableOption "the 1Password SSH agent socket on Darwin";
+  options.dotfiles.ssh.onePasswordAgent.enable = lib.mkOption {
+    type = lib.types.bool;
+    default = profileCfg.enable;
+    description = "Whether to use the 1Password SSH agent socket on Darwin";
+  };
 
   config = {
     assertions = [
@@ -19,6 +28,10 @@ in
         message = "dotfiles.ssh.onePasswordAgent.enable is only supported on Darwin";
       }
     ];
+
+    xdg.configFile."1Password/ssh/agent.toml" = lib.mkIf (cfg.enable && profileCfg.keys != [ ]) {
+      source = agentConfig;
+    };
 
     programs.ssh = {
       enable = true;
