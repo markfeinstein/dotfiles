@@ -9,6 +9,14 @@ let
   isDarwin = options ? system && options ? users && builtins.hasAttr "home-manager" options;
   isHomeManager = options ? home;
   inherit (config.profile.user) homeDirectory username;
+  profileAssertions = [
+    {
+      assertion = lib.all (
+        selector: selector.item != null || selector.vault != null || selector.account != null
+      ) config.profile.ssh.onePasswordAgent.keys;
+      message = "profile.ssh.onePasswordAgent.keys entries must select an item, vault, or account";
+    }
+  ];
 in
 {
   options.profile = {
@@ -21,6 +29,40 @@ in
       );
       default = null;
       description = "Selected configuration profile";
+    };
+
+    ssh.onePasswordAgent = {
+      enable = lib.mkOption {
+        type = lib.types.bool;
+        default = pkgs.stdenv.hostPlatform.isDarwin;
+        description = "Whether the profile uses the 1Password SSH agent";
+      };
+
+      keys = lib.mkOption {
+        type = lib.types.listOf (
+          lib.types.submodule {
+            options = {
+              item = lib.mkOption {
+                type = lib.types.nullOr (lib.types.strMatching ".+");
+                default = null;
+                description = "1Password SSH key item name or ID";
+              };
+              vault = lib.mkOption {
+                type = lib.types.nullOr (lib.types.strMatching ".+");
+                default = null;
+                description = "1Password vault name or ID containing matching SSH keys";
+              };
+              account = lib.mkOption {
+                type = lib.types.nullOr (lib.types.strMatching ".+");
+                default = null;
+                description = "1Password account name or ID containing matching SSH keys";
+              };
+            };
+          }
+        );
+        default = [ ];
+        description = "Ordered selectors for SSH keys exposed by the 1Password agent";
+      };
     };
 
     user = {
@@ -55,7 +97,10 @@ in
   };
 
   config = lib.mkMerge (
-    lib.optional isHomeManager {
+    lib.optional (isHomeManager || isDarwin) {
+      assertions = profileAssertions;
+    }
+    ++ lib.optional isHomeManager {
       home = {
         username = lib.mkDefault username;
         homeDirectory = lib.mkDefault homeDirectory;
@@ -86,6 +131,10 @@ in
 
         users.${username}.profile = {
           inherit (config.profile) name;
+          ssh.onePasswordAgent = {
+            enable = lib.mkDefault config.profile.ssh.onePasswordAgent.enable;
+            keys = lib.mkDefault config.profile.ssh.onePasswordAgent.keys;
+          };
           user = lib.mkDefault config.profile.user;
         };
       };
