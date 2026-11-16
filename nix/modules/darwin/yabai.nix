@@ -299,9 +299,9 @@ let
     version = 3;
     config = {
       layout = "bsp";
-      single_window_width_ratio = 0.9;
+      single_window_width_ratio = 0.96;
       single_window_min_width = 1200;
-      single_window_max_width = 2400;
+      single_window_max_width = 2800;
       split_type = "auto";
       window_placement = "second_child";
       window_insertion_point = "focused";
