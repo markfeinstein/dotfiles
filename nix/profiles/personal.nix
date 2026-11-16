@@ -1,4 +1,4 @@
-{ lib, ... }: {
+{ lib, pkgs, ... }: {
   profile = {
     name = "personal";
     obsidian.vaults = [
@@ -18,6 +18,8 @@
     neovim.features.ai = true;
 
     pi = {
+      solidcraft.enable = pkgs.stdenv.hostPlatform.isDarwin;
+
       skills = lib.mkAfter [
         "agent-memory"
         "obsidian"
