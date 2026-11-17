@@ -9,26 +9,43 @@ let
   isDarwin = options ? system && options ? users && builtins.hasAttr "home-manager" options;
   isHomeManager = options ? home;
   inherit (config.profile.user) homeDirectory username;
-  profileAssertions = [
-    {
-      assertion = lib.all (
-        vault: lib.hasPrefix "/" vault.path || lib.hasPrefix "~/" vault.path
-      ) config.profile.obsidian.vaults;
-      message = "profile.obsidian.vaults paths must be absolute or start with ~/";
+  vaultType = lib.types.listOf (
+    lib.types.submodule {
+      options = {
+        name = lib.mkOption {
+          type = lib.types.strMatching ".+";
+          description = "Obsidian vault name";
+        };
+        path = lib.mkOption {
+          type = lib.types.strMatching ".+";
+          description = "Absolute or home-relative Obsidian vault path";
+        };
+      };
     }
-    {
-      assertion =
-        lib.length (lib.unique (map (vault: vault.name) config.profile.obsidian.vaults))
-        == lib.length config.profile.obsidian.vaults;
-      message = "profile.obsidian.vaults names must be unique";
-    }
-    {
-      assertion = lib.all (
-        selector: selector.item != null || selector.vault != null || selector.account != null
-      ) config.profile.ssh.onePasswordAgent.keys;
-      message = "profile.ssh.onePasswordAgent.keys entries must select an item, vault, or account";
-    }
-  ];
+  );
+  vaults = config.profile.obsidian.vaults;
+  profileAssertions =
+    lib.optionals (vaults != null) [
+      {
+        assertion = lib.all (
+          vault: lib.hasPrefix "/" vault.path || lib.hasPrefix "~/" vault.path
+        ) vaults;
+        message = "profile.obsidian.vaults paths must be absolute or start with ~/";
+      }
+      {
+        assertion =
+          lib.length (lib.unique (map (vault: vault.name) vaults)) == lib.length vaults;
+        message = "profile.obsidian.vaults names must be unique";
+      }
+    ]
+    ++ [
+      {
+        assertion = lib.all (
+          selector: selector.item != null || selector.vault != null || selector.account != null
+        ) config.profile.ssh.onePasswordAgent.keys;
+        message = "profile.ssh.onePasswordAgent.keys entries must select an item, vault, or account";
+      }
+    ];
 in
 {
   options.profile = {
@@ -44,22 +61,13 @@ in
     };
 
     obsidian.vaults = lib.mkOption {
-      type = lib.types.listOf (
-        lib.types.submodule {
-          options = {
-            name = lib.mkOption {
-              type = lib.types.strMatching ".+";
-              description = "Obsidian vault name";
-            };
-            path = lib.mkOption {
-              type = lib.types.strMatching ".+";
-              description = "Absolute or home-relative Obsidian vault path";
-            };
-          };
-        }
-      );
-      default = [ ];
-      description = "Profile-owned Obsidian vaults available to consuming modules";
+      type = if isDarwin then lib.types.nullOr vaultType else vaultType;
+      default = if isDarwin then null else [ ];
+      description = ''
+        Profile-owned Obsidian vaults available to consuming modules. On Darwin,
+        null inherits the selected Home Manager profile fallback; an explicit
+        list, including an empty list, replaces that fallback.
+      '';
     };
 
     ssh.onePasswordAgent = {
@@ -160,15 +168,22 @@ in
         useGlobalPkgs = true;
         useUserPackages = true;
 
-        users.${username}.profile = {
-          inherit (config.profile) name;
-          obsidian.vaults = lib.mkDefault config.profile.obsidian.vaults;
-          ssh.onePasswordAgent = {
-            enable = lib.mkDefault config.profile.ssh.onePasswordAgent.enable;
-            keys = lib.mkDefault config.profile.ssh.onePasswordAgent.keys;
+        users.${username}.profile =
+          {
+            inherit (config.profile) name;
+            ssh.onePasswordAgent = {
+              enable = lib.mkDefault config.profile.ssh.onePasswordAgent.enable;
+              keys = lib.mkDefault config.profile.ssh.onePasswordAgent.keys;
+            };
+            user = lib.mkDefault config.profile.user;
+          }
+          // lib.optionalAttrs (vaults != null) {
+            # Profile defaults use mkDefault (priority 1000), while ordinary
+            # Home Manager definitions use priority 100. Inherit explicit Darwin
+            # values between them so they replace fallbacks without preventing a
+            # deliberate Home Manager override.
+            obsidian.vaults = lib.mkOverride 900 vaults;
           };
-          user = lib.mkDefault config.profile.user;
-        };
       };
     }
   );
