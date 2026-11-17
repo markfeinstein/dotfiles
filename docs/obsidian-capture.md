@@ -1,8 +1,8 @@
 # Optional Obsidian capture and reference completion
 
-The shared Neovim configuration provides opt-in question, answer, and daily-log
-capture plus vault-aware reference completion. Profiles that do not enable the
-features keep their existing behavior.
+The shared Neovim configuration provides question, answer, and daily-log capture
+plus vault-aware reference completion. Its generic defaults enable these features
+for every profile with shared vault folder conventions.
 
 The implementation reads the existing `vim.g.dotfiles_obsidian` profile generated
 by `nix/modules/home/neovim.nix`. It reuses the configured workspaces, daily-note
@@ -32,7 +32,7 @@ paths and legacy subfolders such as `1 - Journals/Daily`, without classifying
 weekly or monthly journals as daily notes merely because they share the journal
 root.
 
-Reference completion is separately opt-in:
+Reference completion is separately configurable:
 
 - `@` completes configured person notes in vault Markdown buffers and capture
   prompts.
@@ -48,15 +48,15 @@ All options live under `dotfiles.neovim.obsidian`:
 ```nix
 {
   capture = {
-    enable = false;
-    questionsFolder = "Questions";
+    enable = true;
+    questionsFolder = "2 - Notes/Knowledge/Questions";
     questionTemplate = "Question.md";
     logHeading = "## Log";
   };
 
   references = {
-    enable = false;
-    peopleFolder = "People";
+    enable = true;
+    peopleFolder = "2 - Notes/People";
   };
 }
 ```
@@ -64,50 +64,51 @@ All options live under `dotfiles.neovim.obsidian`:
 `questionsFolder` and `peopleFolder` are vault-relative. `questionTemplate` is
 resolved relative to the existing `dotfiles.neovim.obsidian.templates.folder`,
 not from the vault root. Absolute paths and `..` path components are rejected.
-The defaults are generic and do not encode a particular vault or organization.
 
-## Work-compatible configuration
+## Shared defaults
 
-A downstream work profile can preserve its current conventions with:
+The generic Neovim module supplies these defaults to every profile:
 
 ```nix
-{
-  profile.obsidian.vaults = [
-    {
-      name = "work";
-      path = "/Users/mfeinstein/Documents/Carbon";
-    }
-  ];
-
-  dotfiles.neovim.obsidian = {
-    templates.folder = "8 - Resources/Templates";
-
-    capture = {
-      enable = true;
-      questionsFolder = "2 - Notes/Knowledge/Questions";
-      questionTemplate = "Question.md";
-      logHeading = "## Log";
-    };
-
-    references = {
-      enable = true;
-      peopleFolder = "2 - Notes/People";
-    };
+dotfiles.neovim.obsidian = {
+  capture = {
+    enable = true;
+    questionsFolder = "2 - Notes/Knowledge/Questions";
   };
-}
-```
-
-The shared work profile already supplies these daily-note values, so the
-consumer does not need to duplicate them unless it intentionally overrides them:
-
-```nix
-dotfiles.neovim.obsidian.dailyNotes = {
-  folder = "1 - Journals";
-  dateFormat = "%Y/%m-%B/%Y-%m-%d-%A";
+  references = {
+    enable = true;
+    peopleFolder = "2 - Notes/People";
+  };
 };
 ```
 
-For example, the resulting daily path is
+Each value uses `lib.mkDefault`. A downstream profile can replace the folder
+conventions with ordinary option definitions or explicitly disable either feature
+without `lib.mkForce`:
+
+```nix
+dotfiles.neovim.obsidian = {
+  capture.enable = false;
+  references.enable = false;
+};
+```
+
+A downstream configuration still owns its workspace name and absolute vault
+path, for example:
+
+```nix
+profile.obsidian.vaults = [
+  {
+    name = "work";
+    path = "/Users/mfeinstein/Documents/Carbon";
+  }
+];
+```
+
+The generic module continues to supply the existing template, question-template,
+log-heading, inbox, and daily-note defaults. Consumers only need to define them
+when intentionally overriding those generic values. With the default daily-note
+settings, the resulting path is
 `1 - Journals/2026/11-November/2026-11-16-Monday.md`.
 
 ## Downstream migration
@@ -125,12 +126,12 @@ the downstream Neovim source overlay that:
    to the shared `plugin/obsidian.lua`.
 
 Once nothing else imports them, those three downstream Lua modules can also be
-removed. The work repository should keep its work-specific policy:
+removed. The equivalent downstream `dotfiles.neovim.obsidian.capture` and
+`references` block can be removed after the upstream revision is integrated and
+the downstream lock is updated. The work repository should keep:
 
 - workspace name and absolute vault path;
-- questions and people folder conventions;
-- question template filename;
-- log heading;
+- any intentional overrides of the shared defaults;
 - any unrelated packages, credentials, host settings, or vault scripts.
 
 The QuickAdd JavaScript script is independent of this migration. Do not remove,

@@ -198,6 +198,22 @@ let
               }
             ];
           };
+          obsidianDisabledHome = homeConfigurations."${system}-personal".extendModules {
+            modules = [
+              {
+                dotfiles.neovim.obsidian = {
+                  capture = {
+                    enable = false;
+                    questionsFolder = "Questions";
+                  };
+                  references = {
+                    enable = false;
+                    peopleFolder = "People";
+                  };
+                };
+              }
+            ];
+          };
           obsidianNoWorkspaceHome = homeConfigurations."${system}-work".extendModules {
             modules = [
               {
@@ -247,8 +263,8 @@ let
 
             run_profile_state \
               disabled \
-              ${homeConfigurations."${system}-personal".config.dotfiles.neovim.finalConfigSource} \
-              ${homeConfigurations."${system}-personal".config.xdg.dataFile."nvim/site/pack/hm".source}
+              ${obsidianDisabledHome.config.dotfiles.neovim.finalConfigSource} \
+              ${obsidianDisabledHome.config.xdg.dataFile."nvim/site/pack/hm".source}
             run_profile_state \
               no-workspace \
               ${obsidianNoWorkspaceHome.config.dotfiles.neovim.finalConfigSource} \
@@ -267,6 +283,25 @@ let
               --headless -i NONE -n -c 'lua dofile("${./tests/obsidian-capture-test.lua}")'
             touch "$out"
           '';
+          obsidian-bases =
+            let
+              home = obsidianEnabledHome.extendModules {
+                modules = [ { dotfiles.neovim.tooling.web.enable = false; } ];
+              };
+            in
+            pkgs.runCommand "obsidian-bases-check" { } ''
+              export HOME="$TMPDIR/home"
+              export XDG_CONFIG_HOME="$HOME/.config"
+              export XDG_DATA_HOME="$HOME/.local/share"
+              export XDG_STATE_HOME="$HOME/.local/state"
+              export XDG_CACHE_HOME="$HOME/.cache"
+              mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME/nvim/site/pack"
+              ln -s ${home.config.dotfiles.neovim.finalConfigSource} "$XDG_CONFIG_HOME/nvim"
+              ln -s ${home.config.xdg.dataFile."nvim/site/pack/hm".source} "$XDG_DATA_HOME/nvim/site/pack/hm"
+              ${lib.getExe home.config.programs.neovim.finalPackage} \
+                --headless -i NONE -n -c 'lua dofile("${./tests/obsidian-bases-test.lua}")'
+              touch "$out"
+            '';
           neovim-cached-plugins =
             let
               home = homeConfigurations."${system}-personal";

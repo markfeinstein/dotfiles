@@ -174,7 +174,8 @@ end
 -- Vault paths and general preferences are supplied by the active Nix profile.
 local obsidian_profile = vim.g.dotfiles_obsidian or {}
 local vault_workspaces = {}
-local vault_patterns = {}
+local vault_file_patterns = {}
+local vault_markdown_patterns = {}
 local vault_roots = {}
 
 local function normalize_path(path)
@@ -185,8 +186,10 @@ end
 for _, workspace in ipairs(obsidian_profile.workspaces or {}) do
 	local path = normalize_path(workspace.path)
 	vault_workspaces[#vault_workspaces + 1] = { name = workspace.name, path = path }
-	vault_patterns[#vault_patterns + 1] = vim.fs.joinpath(path, "*.md")
-	vault_patterns[#vault_patterns + 1] = vim.fs.joinpath(path, "**", "*.md")
+	vault_file_patterns[#vault_file_patterns + 1] = vim.fs.joinpath(path, "*")
+	vault_file_patterns[#vault_file_patterns + 1] = vim.fs.joinpath(path, "**", "*")
+	vault_markdown_patterns[#vault_markdown_patterns + 1] = vim.fs.joinpath(path, "*.md")
+	vault_markdown_patterns[#vault_markdown_patterns + 1] = vim.fs.joinpath(path, "**", "*.md")
 	vault_roots[#vault_roots + 1] = path
 end
 
@@ -235,6 +238,16 @@ local function get_obsidian_config()
 			},
 		},
 		ui = { enable = false },
+		bases = {
+			inline = {
+				enabled = true,
+				debounce_ms = 120,
+				max_rows = 20,
+				max_width = 100,
+				max_diagnostics = 4,
+			},
+			standalone = { auto_open = true },
+		},
 		-- picker: auto-detected; fzf-lua is packadded before obsidian.nvim loads.
 		footer = {
 			format = "{{links}} links  {{backlinks}} backlinks  {{properties}} properties  {{words}} words  {{chars}} chars",
@@ -346,12 +359,12 @@ local function load_obsidian_for_cwd(trigger)
 	return load_obsidian_for_path(trigger, vim.fn.getcwd())
 end
 
-if #vault_patterns > 0 then
+if #vault_file_patterns > 0 then
 	local obsidian_group = vim.api.nvim_create_augroup("obsidian_vault", { clear = true })
 
 	vim.api.nvim_create_autocmd({ "BufReadPre", "BufNewFile" }, {
 		group = obsidian_group,
-		pattern = vault_patterns,
+		pattern = vault_file_patterns,
 		callback = function(ev)
 			load_obsidian_for_path(ev.event, vim.api.nvim_buf_get_name(ev.buf))
 		end,
@@ -382,7 +395,7 @@ if #vault_patterns > 0 then
 
 	vim.api.nvim_create_autocmd("BufWinEnter", {
 		group = obsidian_group,
-		pattern = vault_patterns,
+		pattern = vault_markdown_patterns,
 		callback = function(ev)
 			if bigfile.is_guarded(ev.buf) then
 				return
@@ -403,7 +416,7 @@ if #vault_patterns > 0 then
 
 	vim.api.nvim_create_autocmd("BufLeave", {
 		group = obsidian_group,
-		pattern = vault_patterns,
+		pattern = vault_markdown_patterns,
 		callback = function(ev)
 			if package.loaded["obsidian"] and vim.bo[ev.buf].modified then
 				vim.cmd("silent! write")
@@ -414,7 +427,7 @@ if #vault_patterns > 0 then
 
 	vim.api.nvim_create_autocmd("BufEnter", {
 		group = obsidian_group,
-		pattern = vault_patterns,
+		pattern = vault_markdown_patterns,
 		callback = function(ev)
 			if not package.loaded["obsidian"] then
 				return

@@ -78,8 +78,10 @@ the selected fallback, including an empty list for no vaults. An ordinary direct
 Home Manager definition has final precedence when a downstream configuration
 intentionally needs its Home Manager value to differ from the inherited Darwin
 value. The default `obsidian.nvim` template folder is `8 - Resources/Templates`
-within each vault. Optional question, answer, daily-log, and
-reference-completion features are covered in
+within each vault. The shared Neovim module enables capture and reference
+completion for all profiles with `lib.mkDefault`, using
+`2 - Notes/Knowledge/Questions` and `2 - Notes/People`. Downstream profiles can
+override the folders or disable either feature normally. Details are covered in
 [Optional Obsidian capture and reference completion](docs/obsidian-capture.md).
 
 Both profiles default to `github:markfeinstein/dotfiles/main`. Override their
@@ -117,6 +119,16 @@ plugin/parser links locally, and may build a package if its cache entry is
 unavailable from the machine's configured substituters. This does not add or
 trust new caches. `checks.<system>.neovim-cached-plugins` exercises the configured
 nightly with these packages in an isolated home directory.
+
+Obsidian is the intentional exception: `nix/packages/obsidian-nvim.nix` pins
+[`markfeinstein/obsidian.nvim`](https://github.com/markfeinstein/obsidian.nvim)
+to a specific commit and source hash. Its locked npm dependencies are built by
+Nix and linked beside the plugin's local Bases worker; no runtime `npm install`
+is needed. Node.js is part of Neovim's core wrapped PATH even when web tooling
+is disabled. Update the revision/source hash together, and refresh `npmDepsHash`
+when the fork's `package-lock.json` changes. `checks.<system>.obsidian-bases`
+exercises the packaged worker through the configured Neovim; the existing
+`obsidian-capture` check covers capture/reference integration.
 
 Neovim's wrapped runtime keeps core editor dependencies separate from optional
 Go, Rust, web, infrastructure, SQL, and document-rendering tool groups. All
