@@ -1,7 +1,7 @@
 { lib, ... }: {
   profile = {
     name = "work";
-    obsidian.vaults = [
+    obsidian.vaults = lib.mkDefault [
       {
         name = "work";
         path = "~/vaults/work";

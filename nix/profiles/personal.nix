@@ -1,7 +1,7 @@
 { lib, pkgs, ... }: {
   profile = {
     name = "personal";
-    obsidian.vaults = [
+    obsidian.vaults = lib.mkDefault [
       {
         name = "personal";
         path = "~/vaults/personal";

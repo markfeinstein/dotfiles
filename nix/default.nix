@@ -213,6 +213,15 @@ let
         {
           home-personal = homeConfigurations."${system}-personal".activationPackage;
           home-work = homeConfigurations."${system}-work".activationPackage;
+          profile-obsidian = import ./tests/profile-obsidian.nix {
+            inherit
+              darwinConfigurations
+              homeConfigurations
+              lib
+              pkgs
+              system
+              ;
+          };
           marksman-binary = pkgs.runCommand "marksman-binary-check" { } ''
             ${pkgs.python3}/bin/python ${./tests/marksman-lsp.py} ${lib.getExe pkgs.marksman}
             touch "$out"
