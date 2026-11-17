@@ -238,6 +238,13 @@ let
               system
               ;
           };
+          rex-worker-labels = pkgs.runCommand "rex-worker-labels-check" {
+            nativeBuildInputs = [ pkgs.coreutils pkgs.gawk pkgs.jq pkgs.python3 ];
+          } ''
+            export PATH="${pkgs.bashNonInteractive}/bin:$PATH"
+            python ${./tests/rex-label-window.py} ${../.}
+            touch "$out"
+          '';
           pi-coordinator = import ./tests/pi-coordinator.nix {
             home = homeConfigurations."${system}-work";
             inherit lib pkgs;

@@ -35,6 +35,21 @@ automatic managed-worktree option.
   cancelling runs are distinct. Human takeover requires confirmed exclusive
   ownership; restarting afterward requires explicit hand-back and reconciliation.
 
+## Worker tab labels
+
+Generated `subagent-<8 hex digits>` labels become
+`Agent · <project> · <branch> · <run suffix>`. The per-window state stores the
+suffix so branch changes and subsequent label-hook processes keep both the
+worker marker and identity. Long labels reserve room for the suffix within the
+128-character limit. Human-renamed labels are left alone. Old three-column
+state preserves the Agent marker but cannot recover an ID already lost.
+
+`python3 nix/tests/rex-label-window.py` exercises the real shell script using
+strict mock Rex/Git executables, including reloads, custom labels, legacy state,
+and long names. `checks.aarch64-darwin.rex-worker-labels` runs it under Nix. These
+are mocked integration checks, not confirmation of live title hooks; they never
+rename operator tabs.
+
 ## Configuration surface
 
 Profiles can merge runtime settings without replacing the generated file:
