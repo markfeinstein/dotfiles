@@ -238,6 +238,10 @@ let
               system
               ;
           };
+          pi-coordinator = import ./tests/pi-coordinator.nix {
+            home = homeConfigurations."${system}-work";
+            inherit lib pkgs;
+          };
           marksman-binary = pkgs.runCommand "marksman-binary-check" { } ''
             ${pkgs.python3}/bin/python ${./tests/marksman-lsp.py} ${lib.getExe pkgs.marksman}
             touch "$out"

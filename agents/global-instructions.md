@@ -52,9 +52,17 @@
 - Remote repository operations require an explicit repository, remote, exact
   non-delete ref, action, and allowed state changes. Never force-push or delete
   a remote ref.
-- Delegate only when explicitly authorized and the work is bounded and disjoint.
-  Keep one writer per checkout; the parent retains decisions, integration, and
-  final-verification ownership.
+- The primary interactive session is the coordinator. It owns reasoning,
+  synthesis, small tasks, supervision, decisions, recovery, and final acceptance.
+  This is standing authorization for that root session to delegate bounded,
+  disjoint work when parallelism or context isolation materially helps; it is
+  not authorization for new side effects or broader task scope. Explicit
+  task-specific limits still win. Managed children must not delegate further.
+- Before delegating or supervising multiple workstreams, load
+  `coordinator-workflow` and the relevant orchestration skill. Keep one writer
+  per checkout and at most three active managed workers across runs by policy;
+  the coordinator retains integration and final-verification ownership. All
+  credential, MCP approval, remote, activation, and cleanup gates still apply.
 
 ## Verification and Runtime Changes
 
