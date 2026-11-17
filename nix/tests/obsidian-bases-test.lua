@@ -62,7 +62,15 @@ local function run()
 		end, 20),
 		"Markdown vault behavior did not attach"
 	)
-	assert(vim.fn.maparg("[d", "n") ~= "", "daily-note mappings must remain scoped to Markdown notes")
+	for _, expected in ipairs({
+		{ lhs = "<leader>op", desc = "Previous Daily Note" },
+		{ lhs = "<leader>on", desc = "Next Daily Note" },
+		{ lhs = "<leader>os", desc = "Search Notes" },
+	}) do
+		local mapping = vim.fn.maparg(expected.lhs, "n", false, true)
+		assert(mapping.buffer == 1, expected.lhs .. " must be buffer-local to Markdown notes")
+		assert(mapping.desc == expected.desc, expected.lhs .. " must describe its Obsidian action")
+	end
 end
 
 local ok, err = xpcall(run, debug.traceback)
