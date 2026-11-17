@@ -16,10 +16,10 @@ When capture is enabled and at least one workspace is configured:
 
 | Command | Mapping | Behavior |
 | --- | --- | --- |
-| `:ObsidianQuestion [question]` | `<leader>mq` | Create or link a question note. |
+| `:ObsidianQuestion [question]` | `<leader>oq` | Create or link a question note. |
 | `:ObsidianQuestion! [question]` | — | Create or link the question, then open it. |
-| `:ObsidianAnswer` | `<leader>ma` | Answer the current question or the question linked on the cursor line. |
-| `:ObsidianLog [entry]` | `<leader>ml` | Add a timestamped entry to today's daily note. |
+| `:ObsidianAnswer` | `<leader>oa` | Answer the current question or the question linked on the cursor line. |
+| `:ObsidianLog [entry]` | `<leader>ol` | Add a timestamped entry to today's daily note. |
 
 Question templates retain the existing schema. Capture fills `date` and
 `asked_in`, preserves an existing question note, and inserts a link either under

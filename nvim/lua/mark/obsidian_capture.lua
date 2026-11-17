@@ -9,7 +9,7 @@ local M = {}
 local state_key = "dotfiles_obsidian_capture_state"
 local prompt_namespace = vim.api.nvim_create_namespace("dotfiles_obsidian_prompt_trigger")
 local command_names = { "ObsidianQuestion", "ObsidianAnswer", "ObsidianLog" }
-local mappings = { "<leader>mq", "<leader>ma", "<leader>ml" }
+local mappings = { "<leader>oq", "<leader>oa", "<leader>ol" }
 local completion_vault
 
 local function current_state()
@@ -806,7 +806,7 @@ function M.setup(opts)
 			M.prompt(create_opts)
 		end
 	end, { nargs = "*", bang = true, desc = "Create an Obsidian Question note and link it here" })
-	vim.keymap.set("n", "<leader>mq", function()
+	vim.keymap.set("n", "<leader>oq", function()
 		M.prompt()
 	end, { desc = "New Question Note" })
 
@@ -817,14 +817,14 @@ function M.setup(opts)
 			M.prompt_answer()
 		end
 	end, { nargs = "*", desc = "Answer the current or linked Obsidian Question note" })
-	vim.keymap.set("n", "<leader>ma", function()
+	vim.keymap.set("n", "<leader>oa", function()
 		M.prompt_answer()
 	end, { desc = "Answer Question Note" })
 
 	vim.api.nvim_create_user_command("ObsidianLog", function(command)
 		run_log(command.args)
 	end, { nargs = "*", desc = "Save an entry to today's daily Log" })
-	vim.keymap.set("n", "<leader>ml", function()
+	vim.keymap.set("n", "<leader>ol", function()
 		run_log()
 	end, { desc = "Add Daily Log Entry" })
 	return true

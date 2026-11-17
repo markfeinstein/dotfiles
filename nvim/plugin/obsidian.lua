@@ -433,19 +433,19 @@ if #vault_file_patterns > 0 then
 				return
 			end
 			local bufnr = ev.buf
-			if vim.b[bufnr]._obsidian_nav_set then
+			if vim.b[bufnr]._obsidian_mappings_set then
 				return
 			end
-			vim.b[bufnr]._obsidian_nav_set = true
-			vim.keymap.set("n", "[d", function()
+			vim.b[bufnr]._obsidian_mappings_set = true
+			vim.keymap.set("n", "<leader>op", function()
 				_navigate_daily(bufnr, -1)
 			end, { buf = bufnr, desc = "Previous Daily Note" })
-			vim.keymap.set("n", "]d", function()
+			vim.keymap.set("n", "<leader>on", function()
 				_navigate_daily(bufnr, 1)
 			end, { buf = bufnr, desc = "Next Daily Note" })
-			vim.keymap.set("n", "<C-M-o>", "<cmd>Obsidian search<cr>", { buf = bufnr, desc = "Search Notes" })
+			vim.keymap.set("n", "<leader>os", "<cmd>Obsidian search<cr>", { buf = bufnr, desc = "Search Notes" })
 		end,
-		desc = "Setup Obsidian daily navigation keybinds",
+		desc = "Setup Obsidian note keybinds",
 	})
 end
 

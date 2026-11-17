@@ -89,8 +89,16 @@ local ok, err = pcall(function()
 	for _, name in ipairs({ "ObsidianQuestion", "ObsidianAnswer", "ObsidianLog" }) do
 		assert(commands[name], name .. " should be registered from the packaged plugin entry point")
 	end
+	for _, expected in ipairs({
+		{ lhs = "<leader>oq", desc = "New Question Note" },
+		{ lhs = "<leader>oa", desc = "Answer Question Note" },
+		{ lhs = "<leader>ol", desc = "Add Daily Log Entry" },
+	}) do
+		local mapping = vim.fn.maparg(expected.lhs, "n", false, true)
+		assert(mapping.desc == expected.desc, expected.lhs .. " should map its Obsidian capture action")
+	end
 	for _, lhs in ipairs({ "<leader>mq", "<leader>ma", "<leader>ml" }) do
-		assert(vim.fn.maparg(lhs, "n") ~= "", lhs .. " should be mapped")
+		assert(vim.fn.maparg(lhs, "n") == "", lhs .. " should no longer be mapped")
 	end
 	assert(type(_G._dotfiles_obsidian_refs_register) == "function", "Blink registration hook should exist")
 

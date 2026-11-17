@@ -103,6 +103,7 @@ local function setup_which_key()
 				{ "<leader>go", group = "GitHub", icon = "󰊤" },
 				{ "<leader>l", group = "LSP", icon = { icon = wk_icons.lsp, color = "orange" } },
 				{ "<leader>m", group = "Markdown", icon = wk_icons.brain, mode = "n" },
+				{ "<leader>o", group = "Obsidian", icon = wk_icons.brain, mode = "n" },
 				{ "<leader>p", group = "Paste", icon = { icon = wk_icons.paste, color = "yellow" }, mode = "n" },
 				{ "<leader>t", group = "Tests" },
 				{ "<leader>x", group = "Diagnostics & Lists" },
