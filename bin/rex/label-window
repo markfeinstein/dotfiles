@@ -27,20 +27,31 @@ current_label=$(
 ) || exit 0
 
 previous=
+run_suffix=
 if [[ -f $state_file ]]; then
-  previous=$(awk -F '\t' -v session="$REX_SESSION" -v window="$window_id" '
-    $1 == session && $2 == window { value = $3 }
-    END { print value }
-  ' "$state_file")
+  IFS=$'\t' read -r previous run_suffix < <(
+    awk -F '\t' -v session="$REX_SESSION" -v window="$window_id" '
+      $1 == session && $2 == window { value = $3; suffix = $4 }
+      END { print value "\t" suffix }
+    ' "$state_file"
+  )
 fi
 
 agent_tab=false
 if [[ $current_label =~ ^Window\ [[:xdigit:]]{8}$ ]]; then
-  :
-elif [[ $current_label == subagent-* ]]; then
+  run_suffix=
+elif [[ $current_label =~ ^subagent-([[:xdigit:]]{8})$ ]]; then
   agent_tab=true
+  run_suffix=${BASH_REMATCH[1]}
 elif [[ -n $previous && $current_label == "$previous" ]]; then
-  :
+  # Only our last label is owned. A manual rename always wins, including Agent labels.
+  if [[ $current_label == "Agent · "* ]]; then
+    agent_tab=true
+  fi
+  # Old three-column records have no recoverable run id; never invent one.
+  if [[ ! $run_suffix =~ ^[[:xdigit:]]{8}$ ]]; then
+    run_suffix=
+  fi
 else
   exit 0
 fi
@@ -69,7 +80,13 @@ fi
 if [[ $agent_tab == true ]]; then
   label="Agent · $label"
 fi
-label=${label:0:128}
+suffix=
+if [[ $agent_tab == true && -n $run_suffix ]]; then
+  suffix=" · $run_suffix"
+fi
+# Keep the distinguishing run id even when long project/branch names are truncated.
+max_base_length=$((128 - ${#suffix}))
+label="${label:0:max_base_length}$suffix"
 [[ $label != "$current_label" ]] || exit 0
 
 "$rex_bin" window rename -s "$REX_SESSION" "$window_id" "$label" >/dev/null || exit 0
@@ -82,5 +99,5 @@ if [[ -f $state_file ]]; then
     !($1 == session && $2 == window)
   ' "$state_file" >"$tmp"
 fi
-printf '%s\t%s\t%s\n' "$REX_SESSION" "$window_id" "$label" >>"$tmp"
+printf '%s\t%s\t%s\t%s\n' "$REX_SESSION" "$window_id" "$label" "$run_suffix" >>"$tmp"
 mv "$tmp" "$state_file"

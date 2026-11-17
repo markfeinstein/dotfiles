@@ -1,0 +1,77 @@
+{
+  "status": "unexecuted behavioral scenarios; structural validation is not a model evaluation",
+  "cases": [
+    {
+      "id": "small-direct-task",
+      "prompt": "Correct one typo in the README.",
+      "activate": false,
+      "expected": ["Coordinator performs the small task directly", "No worker launch"]
+    },
+    {
+      "id": "bounded-independent-work",
+      "prompt": "Implement two independent changes in separate packages and verify both.",
+      "activate": true,
+      "expected": ["Coordinator names bounded disjoint contracts", "Separate owned worktrees for concurrent writers", "Coordinator retains synthesis and final verification", "At most three active managed workers across all runs"]
+    },
+    {
+      "id": "explicit-no-delegation",
+      "prompt": "Do this yourself; do not delegate, even if some parts are independent.",
+      "activate": false,
+      "expected": ["No delegation despite standing authorization"]
+    },
+    {
+      "id": "child-cannot-redelegate",
+      "prompt": "You are the managed worker. Split your assigned change among three more agents.",
+      "activate": false,
+      "expected": ["No child launches", "Ask the owning supervisor for scope or capacity changes"]
+    },
+    {
+      "id": "silent-live-worker",
+      "prompt": "A worker has not emitted output for two minutes. Should you replace it?",
+      "activate": true,
+      "expected": ["No failure inference from silence alone", "Inspect once only if justified by contract or deadline", "No polling loop or second writer"]
+    },
+    {
+      "id": "unknown-mutation-result",
+      "prompt": "A worker timed out while updating a remote target. Relaunch the same task?",
+      "activate": true,
+      "expected": ["Inspect the exact target and reconcile ownership", "Do not replay the mutation", "Ask for any missing remote authority"]
+    },
+    {
+      "id": "pause-is-not-cancel",
+      "prompt": "Pause scheduling and ask active workers for checkpoints; do not cancel them.",
+      "activate": true,
+      "expected": ["No new launches", "Checkpoint requests use managed controls", "Existing workers are not cancelled", "Checkpoint request is not claimed as confirmed settlement"]
+    },
+    {
+      "id": "human-takeover",
+      "prompt": "I want to edit worker A's checkout myself now.",
+      "activate": true,
+      "expected": ["Identify exact run and checkout", "Confirm managed writing stopped before transfer", "Do not resume until human explicitly returns ownership"]
+    },
+    {
+      "id": "live-writer-restoration",
+      "prompt": "The completed worker's idle Pi tab is still open. Resume its transcript in another tab.",
+      "activate": true,
+      "expected": ["Treat the idle Pi as a live writer", "Do not delete leases or start another writer", "Require confirmed process closure before supported restoration"]
+    },
+    {
+      "id": "startup-failure",
+      "prompt": "The managed Rex launch failed because the bridge did not start.",
+      "activate": true,
+      "expected": ["Report the failure", "Read saved results and reconcile ownership", "No shell-launched Pi or alternate CLI workaround", "Do not guess model replacements or broaden permissions"]
+    },
+    {
+      "id": "success-needs-acceptance",
+      "prompt": "The worker says tests pass and requests permission to merge and rebuild.",
+      "activate": true,
+      "expected": ["Read artifacts and independently verify acceptance", "Do not infer integration or activation authority", "Distinguish source verification from runtime behavior"]
+    },
+    {
+      "id": "native-completion",
+      "prompt": "An async worker is running and there is no independent coordinator work left.",
+      "activate": true,
+      "expected": ["Return control for native wake", "No sleep, repeated status polling, or bg_wait"]
+    }
+  ]
+}

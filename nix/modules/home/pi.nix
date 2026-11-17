@@ -41,6 +41,7 @@ let
   commonSkills = [
     "agent-skill-engineering"
     "repository-workflow"
+    "coordinator-workflow"
   ];
   selectedSkills = lib.unique (commonSkills ++ cfg.skills);
   selectedSkillFiles = lib.concatMap (
@@ -61,10 +62,10 @@ let
     "git:github.com/earendil-works/pi-claude-code"
     "npm:pi-intercom"
     "npm:pi-sessions"
-    "npm:pi-subagents"
+    cfg.subagentPackageSpec
     "npm:pi-web-access"
   ];
-  packageSpecs = commonPackageSpecs ++ cfg.packageSpecs;
+  packageSpecs = lib.unique (commonPackageSpecs ++ cfg.packageSpecs);
   commonExtraPackages = [
     pkgs.claude-code
     pkgs.nodejs
@@ -128,6 +129,18 @@ in
       type = lib.types.listOf lib.types.str;
       default = [ ];
       description = "Profile-specific floating Pi package specs added to the common suite";
+    };
+
+    subagentPackageSpec = lib.mkOption {
+      type = lib.types.nonEmptyStr;
+      default = "npm:pi-subagents@0.89.0";
+      description = "Single pi-subagents package source; override with a patched local package instead of adding another copy";
+    };
+
+    subagentConfig = lib.mkOption {
+      inherit (jsonFormat) type;
+      default = { };
+      description = "Profile-mergeable overrides for pi-subagents runtime configuration";
     };
 
     extraPackages = lib.mkOption {
@@ -218,18 +231,20 @@ in
           confirmSend = false;
           replyHint = true;
         };
-        ".pi/agent/extensions/subagent/config.json".text = builtins.toJSON {
-          globalConcurrencyLimit = 12;
+        ".pi/agent/extensions/subagent/config.json".text = builtins.toJSON (lib.recursiveUpdate {
+          # Per-run concurrency, not a cross-run fleet-wide hard cap.
+          globalConcurrencyLimit = 3;
           activeRunsPrompt = true;
           asyncWidget = false;
           checkpointBeforeDeadlineMs = 300000;
           inlineToolDisplay = "summary";
-          maxActiveAsyncRunsPerSession = 4;
+          maxActiveAsyncRunsPerSession = 2;
+          maxSubagentDepth = 1;
           maxSubagentSpawnsPerRun = 64;
           maxSubagentSpawnsPerSession = 256;
           timeoutMs = 3600000;
           worktreeProvider = "worktrunk";
-        };
+        } cfg.subagentConfig);
         ".pi/agent/npm/node_modules/pi-web-access/node_modules/@earendil-works/pi-coding-agent".source =
           "${pkgs.pi-coding-agent}/lib/node_modules/pi-monorepo";
       }

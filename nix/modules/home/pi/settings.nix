@@ -47,28 +47,34 @@ in
       "cursor-agent".disabled = true;
       "cursor-agent-writer".disabled = true;
       scout = {
+        machine = "local";
         model = "openai-codex/gpt-6-luna";
         thinking = "low";
       };
       researcher = {
+        machine = "local";
         model = "openai-codex/gpt-6-luna";
         thinking = "medium";
       };
       "evidence-auditor" = {
+        machine = "local";
         model = "openai-codex/gpt-6.1-sol";
         thinking = "high";
       };
       worker = {
+        machine = "local";
         model = "github-copilot/gpt-6.1-terra";
         thinking = "high";
         inheritGlobalContext = true;
         skills = [ "repository-workflow" ];
       };
       reviewer = {
+        machine = "local";
         model = "openai-codex/gpt-6.1-sol";
         thinking = "high";
       };
       oracle = {
+        machine = "local";
         model = "github-copilot/gpt-5.6-sol";
         thinking = "xhigh";
       };
