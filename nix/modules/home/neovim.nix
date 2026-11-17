@@ -86,6 +86,8 @@ let
     pkgs.marksman
     pkgs.nix
     pkgs.nixd
+    # Required by the fork's local Bases evaluator, independent of web tooling.
+    pkgs.nodejs
     pkgs.nushell
     pkgs.yaml-language-server
   ];
