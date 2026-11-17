@@ -24,7 +24,7 @@ end
 for _, name in ipairs({ "ObsidianQuestion", "ObsidianAnswer", "ObsidianLog" }) do
 	assert(commands[name] == nil, name .. " must not be registered")
 end
-for _, lhs in ipairs({ "<leader>mq", "<leader>ma", "<leader>ml" }) do
+for _, lhs in ipairs({ "<leader>oq", "<leader>oa", "<leader>ol", "<leader>mq", "<leader>ma", "<leader>ml" }) do
 	assert(vim.fn.maparg(lhs, "n") == "", lhs .. " must not be mapped")
 end
 assert(_G._dotfiles_obsidian_refs_register == nil, "reference registration must stay disabled")
