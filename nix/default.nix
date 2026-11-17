@@ -269,7 +269,7 @@ let
           '';
           obsidian-bases =
             let
-              home = homeConfigurations."${system}-personal".extendModules {
+              home = obsidianEnabledHome.extendModules {
                 modules = [ { dotfiles.neovim.tooling.web.enable = false; } ];
               };
             in
