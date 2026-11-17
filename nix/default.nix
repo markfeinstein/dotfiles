@@ -198,6 +198,22 @@ let
               }
             ];
           };
+          obsidianDisabledHome = homeConfigurations."${system}-personal".extendModules {
+            modules = [
+              {
+                dotfiles.neovim.obsidian = {
+                  capture = {
+                    enable = false;
+                    questionsFolder = "Questions";
+                  };
+                  references = {
+                    enable = false;
+                    peopleFolder = "People";
+                  };
+                };
+              }
+            ];
+          };
           obsidianNoWorkspaceHome = homeConfigurations."${system}-work".extendModules {
             modules = [
               {
@@ -247,8 +263,8 @@ let
 
             run_profile_state \
               disabled \
-              ${homeConfigurations."${system}-personal".config.dotfiles.neovim.finalConfigSource} \
-              ${homeConfigurations."${system}-personal".config.xdg.dataFile."nvim/site/pack/hm".source}
+              ${obsidianDisabledHome.config.dotfiles.neovim.finalConfigSource} \
+              ${obsidianDisabledHome.config.xdg.dataFile."nvim/site/pack/hm".source}
             run_profile_state \
               no-workspace \
               ${obsidianNoWorkspaceHome.config.dotfiles.neovim.finalConfigSource} \

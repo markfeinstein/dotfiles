@@ -78,8 +78,10 @@ the selected fallback, including an empty list for no vaults. An ordinary direct
 Home Manager definition has final precedence when a downstream configuration
 intentionally needs its Home Manager value to differ from the inherited Darwin
 value. The default `obsidian.nvim` template folder is `8 - Resources/Templates`
-within each vault. Optional question, answer, daily-log, and
-reference-completion features are covered in
+within each vault. The shared Neovim module enables capture and reference
+completion for all profiles with `lib.mkDefault`, using
+`2 - Notes/Knowledge/Questions` and `2 - Notes/People`. Downstream profiles can
+override the folders or disable either feature normally. Details are covered in
 [Optional Obsidian capture and reference completion](docs/obsidian-capture.md).
 
 Both profiles default to `github:markfeinstein/dotfiles/main`. Override their

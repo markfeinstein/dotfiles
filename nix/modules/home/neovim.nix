@@ -402,7 +402,19 @@ in
       }
     ];
 
-    dotfiles.neovim.finalConfigSource = configSource;
+    dotfiles.neovim = {
+      finalConfigSource = configSource;
+      obsidian = {
+        capture = {
+          enable = lib.mkDefault true;
+          questionsFolder = lib.mkDefault "2 - Notes/Knowledge/Questions";
+        };
+        references = {
+          enable = lib.mkDefault true;
+          peopleFolder = lib.mkDefault "2 - Notes/People";
+        };
+      };
+    };
 
     programs.neovim = {
       enable = true;
