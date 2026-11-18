@@ -74,11 +74,21 @@ assert(execs[#execs].argv[2] == "-g" and execs[#execs].argv[3] == "https://b.exa
 assert(picked.title == "Open URL in the background")
 assert(not pcall(run, { block_id = "block:b" }, { mode = "print" }))
 
--- Cancelling is quiet; an empty pane is an error.
+-- Cancelling is quiet.
 pick_reply = { nil, "cancelled" }
 assert(run({ block_id = "block:b" }, {}) == false)
+
+-- An empty pane shows a one-row empty state instead of an error, and
+-- choosing that row does nothing.
 html = "<div>nothing here</div>\n"
-assert(not pcall(run, { block_id = "block:b" }, {}))
+local before = #execs
+pick_reply = { "none" }
+assert(run({ block_id = "block:b" }, {}) == false)
+assert(picked.title == "No links in this pane" and #picked.items == 1 and picked.items[1].id == "none")
+assert(picked.timeout == 3)
+assert(#execs == before)
+pick_reply = { nil, "cancelled" }
+assert(run({ block_id = "block:b" }, { mode = "copy" }) == false and #execs == before)
 
 -- Long scrollback is read from the end only, and only the newest lines count.
 local lines = {}

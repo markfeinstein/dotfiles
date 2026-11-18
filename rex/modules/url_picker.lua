@@ -270,7 +270,21 @@ return function(context)
       if ctx.block_id == nil then error("the URL picker needs a focused terminal pane", 0) end
       local candidates = M.extract(capture_html(ctx.block_id))
       if #candidates == 0 then
-        error("No HTTP or HTTPS URLs in the last " .. line_limit .. " lines", 0)
+        -- Rex has no notice API for actions, so say so in the picker itself
+        -- rather than failing. It closes itself like a notice; choosing the
+        -- row or pressing Escape closes it sooner.
+        rex.ui.pick{
+          title = "No links in this pane",
+          placeholder = "Closes by itself",
+          items = { {
+            id = "none",
+            title = "No HTTP or HTTPS links in the last " .. line_limit .. " lines",
+            subtitle = "Full-screen programs such as Pi and Neovim keep only what's on screen",
+            icon = "link",
+          } },
+          timeout = 3,
+        }
+        return false
       end
       local chosen, why, detail = rex.ui.pick{
         title = modes[mode],
