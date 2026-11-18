@@ -42,28 +42,14 @@ found = url.extract('<a href="https://a.example/x?b=1&amp;c=2">https://a.example
   .. ' <a href="mailto:me@example.com">mail</a> http:// and ftp://x.example done')
 assert(#found == 1 and found[1].url == "https://a.example/x?b=1&c=2" and found[1].label == nil)
 
--- Other devices see host and path only.
-assert(url.display("https://user:pw@github.com/org/repo/pull/6083?token=abc#frag") == "github.com/org/repo/pull/6083?…")
-assert(url.display("https://chat.example.com/hooks/T01AB2CD3/B04EF5GH6/Xy9Zq8Wv7Ut6Sr5Qp4On3Ml2") == "chat.example.com/hooks/T01AB2CD3/B04EF5GH6/…")
-assert(url.display("https://github.com/o/r/tree/user-mfeinstein-SWE-2028-eks-gcs-acceptance-job")
-  == "github.com/o/r/tree/user-mfeinstein-SWE-2028-eks-gcs-acceptance-job")
-assert(url.display("https://example.com") == "example.com/")
-assert(url.display("https://x.example/files/3f2a9c1e-7b4d-4e8a-9c2b-1d5e6f7a8b9c") == "x.example/files/…")
-
--- Choosing opens the full URL, while the prompt only carried row numbers and
--- redacted text.
-html = '<div>see https://a.example/one?secret=s3cr3t</div>\n<div><a href="https://b.example/two">Docs</a></div>\n'
+-- Rows show full URLs; a hyperlink shows its text with the URL under it.
+html = '<div>see https://a.example/one?tab=files#L10</div>\n<div><a href="https://b.example/two">Docs</a></div>\n'
 pick_reply = { "2" }
 assert(run({ block_id = "block:b" }, {}) == true)
-for _, item in ipairs(picked.items) do
-  for _, field in ipairs({ "id", "title", "subtitle" }) do
-    assert(not tostring(item[field] or ""):find("s3cr3t", 1, true), "a secret reached the prompt")
-  end
-end
 assert(picked.items[1].id == "1" and picked.items[2].id == "2")
-assert(picked.items[1].title == "Docs" and picked.items[1].subtitle == "b.example/two")
-assert(picked.items[2].title == "a.example/one?…")
-assert(execs[#execs].argv[1] == "/usr/bin/open" and execs[#execs].argv[2] == "https://a.example/one?secret=s3cr3t")
+assert(picked.items[1].title == "Docs" and picked.items[1].subtitle == "https://b.example/two")
+assert(picked.items[2].title == "https://a.example/one?tab=files#L10")
+assert(execs[#execs].argv[1] == "/usr/bin/open" and execs[#execs].argv[2] == "https://a.example/one?tab=files#L10")
 
 -- Copy sends the URL to the clipboard on stdin; background keeps the browser behind.
 pick_reply = { "1" }
@@ -97,6 +83,6 @@ html = table.concat(lines, "\n") .. "\n"
 blob_calls = 0
 pick_reply = { "1" }
 run({ block_id = "block:b" }, {})
-assert(#picked.items == 5 and picked.items[1].title == "old.example/3000" and picked.items[5].title == "old.example/2996")
+assert(#picked.items == 5 and picked.items[1].title == "https://old.example/3000" and picked.items[5].title == "https://old.example/2996")
 assert(blob_calls > 0 and blob_calls < 40)
 print("url picker ok")

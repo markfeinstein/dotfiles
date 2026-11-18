@@ -2,9 +2,8 @@
 -- in Rex's native prompt. This follows rex-picker's url adapter: plain URLs
 -- and OSC 8 hyperlinks from the newest 20,000 lines, newest first.
 --
--- Native prompts appear on every connected Rex app, so the prompt never
--- carries a full URL. Item ids are row numbers, titles drop the query and
--- fragment, and token-like path segments become "…". The full URL stays here.
+-- Rows show each URL in full, as printed. Native prompts appear on every
+-- connected Rex app, so any token in a link reaches those devices too.
 return function(context)
   local terminal_creator = context.terminal_creator
   local line_limit = context.line_limit or 20000
@@ -192,40 +191,10 @@ return function(context)
     return candidates
   end
 
-  -- Long segments that switch between letters and digits often are tokens,
-  -- ids, or signatures; readable words and short numbers stay.
-  local function token_like(segment)
-    if #segment < 16 or segment:find("[^%w_%-%.~]") then return false end
-    local switches, previous = 0, nil
-    for character in segment:gmatch(".") do
-      local kind = character:find("%d") and "d" or (character:find("%a") and "a" or previous)
-      if previous ~= nil and kind ~= previous then switches = switches + 1 end
-      previous = kind
-    end
-    return switches >= 4
-  end
-
-  -- What other devices see: host and path, without query, fragment, user
-  -- info, or token-like path segments.
-  function M.display(url)
-    local rest = url:match("^[Hh][Tt][Tt][Pp][Ss]?://(.*)$") or url
-    local authority, path = rest:match("^([^/?#]*)(.*)$")
-    authority = authority:gsub("^.*@", "")
-    local query = path:find("[?#]")
-    local hidden = query ~= nil
-    if query ~= nil then path = path:sub(1, query - 1) end
-    path = path:gsub("[^/]+", function(segment)
-      if token_like(segment) then return "…" end
-      return nil
-    end)
-    if path == "" then path = "/" end
-    return authority .. path .. (hidden and "?…" or "")
-  end
-
   function M.items(candidates)
     local items = {}
     for index, candidate in ipairs(candidates) do
-      local shown = M.display(candidate.url)
+      local shown = candidate.url
       table.insert(items, {
         id = tostring(index),
         title = candidate.label or shown,
