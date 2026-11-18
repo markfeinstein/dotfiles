@@ -271,9 +271,11 @@ curl -fsSL https://raw.githubusercontent.com/markfeinstein/dotfiles/main/bin/boo
 
 ## Rex pickers
 
-Choose **Open Rex Documentation…** from the Rex command palette (or run
+Press <kbd>Ctrl</kbd>+<kbd>Space</kbd> then <kbd>?</kbd> (or run
 `rex do rex_docs_picker`) for a native picker of three public reference pages.
-The browser opens on the server Mac. The action has no default key binding.
+The browser opens on the server Mac. Starting **Open Rex Documentation…** from
+the command palette doesn't show the picker, because the closing palette
+appears to cancel the prompt.
 Native prompts appear on every eligible connected Rex app; keep passwords,
 scrollback, and history in their existing terminal pickers.
 
