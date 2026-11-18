@@ -8,6 +8,7 @@ local rex_gh_dash = os.getenv("HOME") .. "/.local/bin/rex-gh-dash"
 local rex_capture = "@rex_capture@"
 local scrollback_editor = "@scrollback_editor@"
 local rex_lazygit = os.getenv("HOME") .. "/.local/bin/rex-lazygit"
+local git_project = "@git_project@"
 -- Home Manager replaces this exact default for profiles that enable the
 -- personal password-store picker.
 local password_picker_enabled = false
@@ -266,7 +267,10 @@ load_module("pickers")({
 })
 
 load_module("prompts")({
+  terminal_creator = terminal_creator,
   terminal_shell = terminal_shell,
+  process_cwd = common.process_cwd,
+  git_project = git_project,
 })
 
 load_module("bindings")({

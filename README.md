@@ -287,6 +287,14 @@ choices, and `timeout=` (seconds, 300 by default). The JSON result has
 `unsupported`, or `failed`) and, when answered, `answer`. Never put secrets in
 the question.
 
+<kbd>Ctrl</kbd>+<kbd>Space</kbd> then <kbd>W</kbd> lists every worktree that
+`git-project` knows under `~/dev`, with the current project first. Choosing one
+goes to a tab already in that worktree (plain tabs before agent tabs) or opens a
+new tab there. <kbd>Ctrl</kbd>+<kbd>Space</kbd> then <kbd>Shift</kbd>+<kbd>W</kbd>
+picks a project, asks for a branch, creates the worktree with `git-project
+worktree`, and opens it. Worktree paths and branch names appear on every
+connected Rex app.
+
 The managed picker floats use the close watcher, not an exiting terminal
 process, to restore the originating pane. When the watcher is disabled or
 cannot establish who owned focus, Rex's normal close behavior wins.
