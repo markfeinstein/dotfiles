@@ -78,8 +78,10 @@ the selected fallback, including an empty list for no vaults. An ordinary direct
 Home Manager definition has final precedence when a downstream configuration
 intentionally needs its Home Manager value to differ from the inherited Darwin
 value. The default `obsidian.nvim` template folder is `8 - Resources/Templates`
-within each vault. The shared Neovim module enables capture and reference
-completion for all profiles with `lib.mkDefault`, using
+within each vault. The shared Neovim configuration enables obsidian.nvim's
+metadata cache so existing notes and previously referenced unresolved targets
+participate in `[[` completion. The shared module also enables capture and
+reference completion for all profiles with `lib.mkDefault`, using
 `2 - Notes/Knowledge/Questions` and `2 - Notes/People`. Downstream profiles can
 override the folders or disable either feature normally. Details are covered in
 [Optional Obsidian capture and reference completion](docs/obsidian-capture.md).

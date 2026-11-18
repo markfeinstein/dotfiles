@@ -52,6 +52,7 @@ local function run()
 		end, 20),
 		"opening a non-Markdown vault file did not load obsidian.nvim"
 	)
+	assert(Obsidian.opts.cache.enabled == true, "shared Obsidian metadata cache is not enabled")
 	assert(Obsidian.opts.bases.inline.enabled == true, "automatic inline Bases rendering is not configured")
 	assert(Obsidian.opts.bases.standalone.auto_open == true, "standalone Base rendering is not configured")
 
