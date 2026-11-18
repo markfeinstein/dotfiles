@@ -215,6 +215,9 @@ local function get_obsidian_config()
 			alias_format = "%B %-d, %Y",
 			template = "Daily Note.md",
 		},
+		cache = {
+			enabled = true,
+		},
 		completion = {
 			min_chars = 1,
 			match_case = false,

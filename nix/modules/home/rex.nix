@@ -91,6 +91,7 @@ let
         cp -R ${../../../rex} "$out"
         chmod -R u+w "$out"
         substituteInPlace "$out/init.lua" \
+          --replace-fail 'local picker_focus_watcher = true' 'local picker_focus_watcher = ${lib.boolToString cfg.drawerFollowEnable}' \
           --replace-fail '@rex_capture@' "$rexCapture" \
           --replace-fail '@scrollback_editor@' "$scrollbackEditor" \
           --replace-fail \

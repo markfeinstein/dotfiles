@@ -3,13 +3,13 @@
   fetchFromGitHub,
   obsidian-nvim,
 }: let
-  revision = "4d4d8676e2b13c01eb4013ecf7c6e1bb909e89af";
+  revision = "7853809d57cbfe4843b0310c81985cac589a29ec";
   version = "3.16.10-unstable-2026-11-17";
   src = fetchFromGitHub {
     owner = "markfeinstein";
     repo = "obsidian.nvim";
     rev = revision;
-    hash = "sha256-t9+4AS3ljwLTXBE4Rg3YwcFWcKFIL+YI/FBEeX8qyxo=";
+    hash = "sha256-UzAcoVNXwV+Gp2sIR8zrwVA1Ypo/I9qZpseig9PfLSU=";
   };
   evaluator = buildNpmPackage {
     pname = "obsidian-nvim-bases-runtime";

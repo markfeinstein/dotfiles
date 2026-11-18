@@ -70,6 +70,9 @@ prefix("0", "client.font.reset")
 prefix("t", "client.theme.change")
 prefix("shift+t", "client.appearance.switch_mode", { mode = "toggle" })
 prefix("alt+t", "client.tab_style.toggle")
+-- Started from the command palette, the docs picker's prompt never shows
+-- (the closing palette appears to cancel it), so give it a key.
+prefix("shift+/", "rex_docs_picker")
 prefix("`", "toggle_terminal_drawer_dock")
 prefix("shift+`", "toggle_terminal_drawer_park")
 

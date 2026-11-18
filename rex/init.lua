@@ -11,6 +11,7 @@ local rex_lazygit = os.getenv("HOME") .. "/.local/bin/rex-lazygit"
 -- Home Manager replaces this exact default for profiles that enable the
 -- personal password-store picker.
 local password_picker_enabled = false
+local picker_focus_watcher = true
 local rose_pine_theme = os.getenv("HOME") .. "/.config/rex/themes/Rose Pine"
 local rose_pine_moon_theme = os.getenv("HOME") .. "/.config/rex/themes/Rose Pine Moon"
 local rose_pine_dawn_theme = os.getenv("HOME") .. "/.config/rex/themes/Rose Pine Dawn"
@@ -112,6 +113,7 @@ local function open_terminal_layer(label, command, bounds, cwd)
   end
   return {
     layer_id = result.layer_id,
+    revision = result.revision,
     block_ids = result.block_ids or {},
   }
 end
@@ -251,6 +253,7 @@ load_module("pickers")({
   process_cwd = common.process_cwd,
   write_atomic = common.write_atomic,
   rex_picker = rex_picker,
+  picker_focus_watcher = picker_focus_watcher,
   rex_gh_dash = rex_gh_dash,
   rex_capture = rex_capture,
   scrollback_editor = scrollback_editor,

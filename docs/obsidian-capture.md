@@ -40,6 +40,9 @@ Reference completion is separately configurable:
   note aliases, headings, labels, and insertion text.
 - Normal `[[` completion in note buffers remains solely owned by obsidian.nvim;
   the additional Blink source handles only `@`.
+- The shared config enables obsidian.nvim's metadata cache, so previously
+  referenced unresolved note targets also appear in `[[` completion without
+  creating the note when selected.
 
 ## Nix options
 
