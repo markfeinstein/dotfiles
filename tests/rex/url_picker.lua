@@ -42,13 +42,22 @@ found = url.extract('<a href="https://a.example/x?b=1&amp;c=2">https://a.example
   .. ' <a href="mailto:me@example.com">mail</a> http:// and ftp://x.example done')
 assert(#found == 1 and found[1].url == "https://a.example/x?b=1&c=2" and found[1].label == nil)
 
--- Rows show full URLs; a hyperlink shows its text with the URL under it.
+-- Rows fit the palette: no "https://" or "www.", long URLs cut in the middle
+-- at separators, plain http:// kept.
+assert(url.display("https://www.superlogical.com/rex/docs/customize/custom-ui") == "superlogical.com/rex/docs/customize/custom-ui")
+assert(url.display("http://localhost:5173/dashboard?tab=files") == "http://localhost:5173/dashboard?tab=files")
+assert(url.display("https://github.com/carbon3d/c3d/blob/master/README.md?plain=1#L10-L20")
+  == "github.com/…/master/README.md?plain=1#L10-L20")
+assert(url.display("https://console.cloud.google.com/storage/browser/carbon3d-prod-artifacts/program-worker/2026-11-18?project=carbon-prod")
+  == "console.cloud.google.com/…project=carbon-prod")
+
+-- A hyperlink shows its text with the URL under it.
 html = '<div>see https://a.example/one?tab=files#L10</div>\n<div><a href="https://b.example/two">Docs</a></div>\n'
 pick_reply = { "2" }
 assert(run({ block_id = "block:b" }, {}) == true)
 assert(picked.items[1].id == "1" and picked.items[2].id == "2")
-assert(picked.items[1].title == "Docs" and picked.items[1].subtitle == "https://b.example/two")
-assert(picked.items[2].title == "https://a.example/one?tab=files#L10")
+assert(picked.items[1].title == "Docs" and picked.items[1].subtitle == "b.example/two")
+assert(picked.items[2].title == "a.example/one?tab=files#L10")
 assert(execs[#execs].argv[1] == "/usr/bin/open" and execs[#execs].argv[2] == "https://a.example/one?tab=files#L10")
 
 -- Copy sends the URL to the clipboard on stdin; background keeps the browser behind.
@@ -83,6 +92,6 @@ html = table.concat(lines, "\n") .. "\n"
 blob_calls = 0
 pick_reply = { "1" }
 run({ block_id = "block:b" }, {})
-assert(#picked.items == 5 and picked.items[1].title == "https://old.example/3000" and picked.items[5].title == "https://old.example/2996")
+assert(#picked.items == 5 and picked.items[1].title == "old.example/3000" and picked.items[5].title == "old.example/2996")
 assert(blob_calls > 0 and blob_calls < 40)
 print("url picker ok")

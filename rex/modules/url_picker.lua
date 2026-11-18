@@ -2,8 +2,9 @@
 -- in Rex's native prompt. This follows rex-picker's url adapter: plain URLs
 -- and OSC 8 hyperlinks from the newest 20,000 lines, newest first.
 --
--- Rows show each URL in full, as printed. Native prompts appear on every
--- connected Rex app, so any token in a link reaches those devices too.
+-- Rows show each URL without "https://" or "www.", cut in the middle when
+-- long. Native prompts appear on every connected Rex app, so any token in a
+-- link reaches those devices too.
 return function(context)
   local terminal_creator = context.terminal_creator
   local line_limit = context.line_limit or 20000
@@ -191,10 +192,57 @@ return function(context)
     return candidates
   end
 
+  -- The palette has a fixed width and cuts long rows at the end, so fit each
+  -- URL into about this many characters (its font is proportional, so this
+  -- is approximate).
+  local display_width = context.display_width or 45
+
+  local function characters(text)
+    local list = {}
+    for character in text:gmatch("[%z\1-\127\194-\244][\128-\191]*") do
+      table.insert(list, character)
+    end
+    return list
+  end
+
+  local head_breaks = { ["/"] = true }
+  local tail_breaks = { ["/"] = true, ["?"] = true, ["&"] = true, ["#"] = true }
+
+  -- Drops "https://" and "www.", then cuts long URLs in the middle so the
+  -- host and the distinguishing end both stay visible. Of the cuts that fit,
+  -- it prefers ones after a "/" and before a "/", "?", "&", or "#", then the
+  -- longest result. Plain http:// stays so it stands out.
+  function M.display(url)
+    local text = url:gsub("^[Hh][Tt][Tt][Pp][Ss]://", ""):gsub("^[Ww][Ww][Ww]%.", "")
+    local list = characters(text)
+    local count = #list
+    if count <= display_width then return text end
+
+    -- Keep the host and its "/" whole when they leave room for an end.
+    local host = #characters(text:match("^[^/?#]*"))
+    local min_head = math.min(host + 1, display_width - 12)
+    local best, best_score
+    for head = min_head, display_width - 2 do
+      -- The head is list[1..head]; the tail starts at list[tail].
+      local tail = count - (display_width - 1 - head) + 1
+      for start = tail, math.min(count, tail + 10) do
+        local length = head + 1 + (count - start + 1)
+        local score = length
+          + (head_breaks[list[head]] and 6 or 0)
+          + (tail_breaks[list[start]] and 6 or 0)
+          + (head == host + 1 and 2 or 0)
+        if best_score == nil or score > best_score then
+          best, best_score = { head, start }, score
+        end
+      end
+    end
+    return table.concat(list, "", 1, best[1]) .. "…" .. table.concat(list, "", best[2], count)
+  end
+
   function M.items(candidates)
     local items = {}
     for index, candidate in ipairs(candidates) do
-      local shown = candidate.url
+      local shown = M.display(candidate.url)
       table.insert(items, {
         id = tostring(index),
         title = candidate.label or shown,

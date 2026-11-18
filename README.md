@@ -298,8 +298,10 @@ connected Rex app.
 <kbd>Cmd</kbd>+<kbd>L</kbd> lists the HTTP(S) links in the focused pane's newest
 20,000 lines, newest first, including clickable terminal links, and opens the
 one you choose; <kbd>Ctrl</kbd>+<kbd>Space</kbd> then <kbd>Y</kbd> copies it instead.
-Rows show each link in full, and the list appears on every connected Rex app, so
-a token in a link reaches those devices too. The older floating picker is in
+Rex's palette has a fixed width, so rows drop `https://` and `www.` and cut long
+links in the middle, keeping the host and the end; opening or copying always uses
+the full link, but typing filters only on the text shown. The list appears on
+every connected Rex app, so a token in a link reaches those devices too. The older floating picker is in
 the command palette as **Open URL from Scrollback (Terminal Picker)**.
 
 <kbd>Cmd</kbd>+<kbd>M</kbd> in a Pi pane opens a native picker of every model
