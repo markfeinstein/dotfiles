@@ -10,7 +10,7 @@ local terminal_drawer_label = "Terminal Drawer"
 local rex_state_directory = (os.getenv("XDG_STATE_HOME")
   or (os.getenv("HOME") .. "/.local/state")) .. "/rex"
 local terminal_drawer_state_path = rex_state_directory .. "/terminal-drawer.tsv"
-local file_picker_focus_directory = rex_state_directory .. "/file-picker-focus"
+local picker_focus_directory = rex_state_directory .. "/picker-focus"
 local follow_delay_seconds = 0.025
 local pending_by_session = {}
 local moving_by_session = {}
@@ -81,33 +81,57 @@ local function log_failure(message, err)
   rex.log("warn", message .. ": " .. tostring(err))
 end
 
-local function file_picker_focus_path(block_id)
-  local safe_block_id = block_id:gsub("[^%w._-]", "_")
-  return file_picker_focus_directory .. "/" .. safe_block_id .. ".tsv"
-end
+-- Keep only focus IDs, never terminal contents. Startup/title updates can
+-- advance the revision while a picker still owns focus. A queued view event
+-- may already see a newer snapshot; never infer what a missed revision held.
+local focus_history = {}
+rex.on("session_view_changed", function(_, ev)
+  local recent = focus_history[ev.session_id] or {}
+  if recent[1] and recent[1].revision >= ev.revision then return end
+  local view = rex.session.view{ session_id = ev.session_id }
+  local window = common.active_window(view)
+  if not window then return end
+  focus_history[ev.session_id] = {
+    { revision = view.revision, block = window.focused_block_id },
+    recent[1],
+  }
+end)
 
-local function restore_file_picker_focus(event)
-  local path = file_picker_focus_path(event.block_id)
+local function restore_picker_focus(event)
+  local path = picker_focus_directory .. "/" .. event.block_id:gsub("[^%w._-]", "_") .. ".tsv"
   local file = io.open(path, "r")
-  if file == nil then
-    return
-  end
-
+  if file == nil then return end
   local line = file:read("*l")
   file:close()
   os.remove(path)
-  local session_id, block_id = (line or ""):match("^([^\t]+)\t([^\t]+)$")
-  if session_id == nil or block_id == nil then
-    rex.log("warn", "Ignoring invalid file picker focus state for " .. tostring(event.block_id))
-    return
+  local session, origin, opened, zoom = (line or ""):match("^([^\t]+)\t([^\t]+)\t(%d+)\t([01])$")
+  if not session or session ~= event.session_id then return end
+  local view = rex.session.view{ session_id = session }
+  local window = common.active_window(view)
+  if not window then return end
+  -- Focus must have belonged to this picker immediately before the close.
+  -- If the watcher missed that revision, defer to Rex rather than guess.
+  local previous = view.revision - 1
+  local owned_focus = previous == tonumber(opened)
+  for _, snapshot in ipairs(focus_history[session] or {}) do
+    if snapshot.revision == previous then owned_focus = snapshot.block == event.block_id end
   end
-
-  local focused, focus_err = rex.session.focus_block{
-    session_id = session_id,
-    block_id = block_id,
-  }
-  if focused == nil then
-    log_failure("Unable to restore focus after closing the file picker", focus_err)
+  if not owned_focus then return end
+  for _, layer in ipairs(window.layers or {}) do
+    for _, block in ipairs(layer.blocks or {}) do
+      if block.block_id == origin then
+        local ok, err
+        if zoom == "1" and window.zoomed_block_id ~= origin then
+          ok, err = rex.session.zoom_block{ session_id = session, block_id = origin, zoom = true }
+        elseif window.focused_block_id ~= origin then
+          ok, err = rex.session.focus_block{ session_id = session, block_id = origin }
+        else
+          return
+        end
+        if not ok then log_failure("Unable to restore picker focus", err) end
+        return
+      end
+    end
   end
 end
 
@@ -188,7 +212,7 @@ local function schedule_follow(session_id)
 end
 
 rex.on("block_closed", function(_, event)
-  restore_file_picker_focus(event)
+  restore_picker_focus(event)
 end)
 
 rex.on("active_window_changed", function(ctx)
@@ -198,6 +222,7 @@ rex.on("active_window_changed", function(ctx)
 end)
 
 rex.on("session_destroyed", function(_, ev)
+  focus_history[ev.session_id] = nil
   local pending = pending_by_session[ev.session_id]
   if pending ~= nil then
     pending:cancel()
