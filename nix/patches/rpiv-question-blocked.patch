@@ -1,0 +1,13 @@
+--- a/ask-user-question.ts
++++ b/ask-user-question.ts
+@@ -310 +310,2 @@
+-	const canReopenWhileHidden = removeOverlayInputListener !== undefined;
++	const canReopenWhileHidden = removeOverlayInputListener !== undefined;
++	const blocked = { kind: "question" as const, message: "Question awaiting your answer" };
+@@ -316 +317,2 @@
+-						overlay: true,
++						overlay: true,
++						blocked,
+@@ -328 +330 @@
+-				: { overlay: false },
++				: { overlay: false, blocked },

@@ -57,7 +57,7 @@ let
   commonPackageSpecs = [
     powerlinePackageSource
     "npm:@aliou/pi-guardrails"
-    "npm:@juicesharp/rpiv-ask-user-question"
+    (toString (pkgs.callPackage ../../packages/rpiv-ask-user-question.nix { }))
     "npm:@juicesharp/rpiv-todo"
     "git:github.com/earendil-works/pi-claude-code"
     "npm:pi-intercom"
@@ -211,13 +211,14 @@ in
             ];
           };
         };
+        ".pi/agent/prompts/review-only.md".source = agentsRoot + "/prompts/review-only.md";
         ".config/rpiv-todo/config.json".text = builtins.toJSON {
           maxWidgetLines = 8;
           guidance = {
-            promptSnippet = "Track multi-step work with the todo tool";
+            promptSnippet = "Track milestones and handoffs when a durable checklist helps";
             promptGuidelines = [
-              "Use todo for 3+ steps. Keep exactly one task in_progress; complete each task immediately after verification, never in a batch."
-              "Status changes use update with id and status. Never complete partial or failing work; represent dependencies with blockedBy."
+              "Use todos for independently verifiable milestones, handoffs, or work likely to be interrupted. Skip them for short inspect-change-verify tasks."
+              "Track the outcome, not each tool call. Keep at most one milestone in progress. Mark it complete only after verification; leave incomplete or failing work open."
               "Before unrelated work, start a new session or reconcile the old list; clear it only after earlier tool calls have settled."
             ];
           };
