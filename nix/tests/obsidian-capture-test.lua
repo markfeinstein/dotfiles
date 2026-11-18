@@ -179,6 +179,10 @@ local ok, err = pcall(function()
 		"",
 		"## Details",
 	})
+	write_lines(vim.fs.joinpath(alpha, "Notes", "Cloud references.md"), {
+		"[[GCP]]",
+		"[[GCP|Google Cloud Platform]]",
+	})
 	refs.clear_cache()
 
 	-- Opening a vault note exercises the real shared lazy loader and indexes the
@@ -394,6 +398,10 @@ local ok, err = pcall(function()
 		return item.insert:find("#Details", 1, true) ~= nil
 	end)
 	assert(found_heading, "real obsidian-ls completion should preserve headings")
+	local found_unresolved = prompt_items("[[GC", function(item)
+		return item.label == "[[GCP]] (unresolved)" and item.insert == "[[GCP]]"
+	end)
+	assert(found_unresolved, "real obsidian-ls completion should return cached unresolved targets")
 
 	-- Daily log capture uses the real obsidian.nvim daily-note path/template,
 	-- never switches away from the source buffer, and writes existing unsaved

@@ -17,32 +17,30 @@ return function(context)
   local rose_pine_moon_theme = context.rose_pine_moon_theme
   local rose_pine_dawn_theme = context.rose_pine_dawn_theme
   local rose_pine_dark_theme = context.rose_pine_dark_theme
-  local file_picker_focus_directory = (os.getenv("XDG_STATE_HOME")
-    or (os.getenv("HOME") .. "/.local/state")) .. "/rex/file-picker-focus"
+  -- The watcher is the sole focus owner for managed floats. With it
+  -- disabled, leave Rex's ordinary layer-close behavior alone.
+  local state_dir = (os.getenv("XDG_STATE_HOME") or (os.getenv("HOME") .. "/.local/state")) .. "/rex/picker-focus"
 
-  local function file_picker_focus_path(block_id)
-    local safe_block_id = block_id:gsub("[^%w._-]", "_")
-    return file_picker_focus_directory .. "/" .. safe_block_id .. ".tsv"
-  end
-
-  local function remember_file_picker_focus(picker_block_id, session_id, source_block_id)
-    local result, mkdir_err = rex.exec({ "mkdir", "-p", file_picker_focus_directory }, {
-      timeout = 2,
-      stdout = false,
-      stderr = false,
-    })
-    if result == nil or not result.ok then
-      rex.log("warn", "Unable to create the file picker focus directory: " .. tostring(mkdir_err))
-      return
+  local function open_picker(ctx, label, command, bounds, cwd, zoom)
+    table.insert(command, "--no-restore-focus")
+    local watch = context.picker_focus_watcher
+    if watch then
+      local mkdir = rex.exec({ "mkdir", "-p", state_dir }, { timeout = 2, stdout = false, stderr = false })
+      watch = mkdir ~= nil and mkdir.ok
+      if not watch then rex.log("warn", "Unable to prepare picker focus directory") end
     end
-
-    local path = file_picker_focus_path(picker_block_id)
-    local written, write_err = write_atomic(path, function(file)
-      file:write(session_id .. "\t" .. source_block_id .. "\n")
-    end)
-    if written == nil then
-      rex.log("warn", "Unable to remember file picker focus: " .. tostring(write_err))
+    local layer = open_terminal_layer(label, command, bounds, cwd)
+    for _, id in ipairs(layer.block_ids) do
+      terminal_native_navigation_blocks[id] = true
+      if watch and layer.revision then
+        local path = state_dir .. "/" .. id:gsub("[^%w._-]", "_") .. ".tsv"
+        local ok, err = write_atomic(path, function(f)
+          f:write(table.concat({ ctx.session_id, ctx.block_id, tostring(layer.revision), zoom and "1" or "0" }, "\t") .. "\n")
+        end)
+        if not ok then rex.log("warn", "Unable to remember picker focus: " .. tostring(err)) end
+      end
     end
+    return layer
   end
 
   local function find_floating_layer_by_label(view, label)
@@ -73,19 +71,8 @@ return function(context)
   end
 
   local function open_model_picker(ctx, restore_zoom)
-    local command = { rex_picker, "pi-model", ctx.block_id }
-    if restore_zoom then
-      table.insert(command, "--restore-zoom")
-    end
-    local layer = open_terminal_layer(
-      "Pi Model Picker",
-      command,
-      { 0.26, 0.28, 0.48, 0.44 }
-    )
-    for _, block_id in ipairs(layer.block_ids) do
-      terminal_native_navigation_blocks[block_id] = true
-    end
-    return layer
+    return open_picker(ctx, "Pi Model Picker", { rex_picker, "pi-model", ctx.block_id },
+      { 0.26, 0.28, 0.48, 0.44 }, nil, restore_zoom)
   end
 
 rex.action{
@@ -125,20 +112,9 @@ rex.action{
       error("unable to determine the focused terminal's working directory", 0)
     end
 
-    -- The picker exits inside its floating pane. Its built-in focus restoration
-    -- runs before that pane closes, allowing Rex's close handling to select a
-    -- sibling afterward. Restore the source only after Rex reports the close.
-    local layer = open_terminal_layer(
-      "File Picker",
-      { rex_picker, "file", ctx.session_id, ctx.block_id, cwd, foreground_name, "--no-restore-focus" },
-      { 0.08, 0.10, 0.84, 0.80 },
-      cwd
-    )
-    for _, block_id in ipairs(layer.block_ids) do
-      terminal_native_navigation_blocks[block_id] = true
-      remember_file_picker_focus(block_id, ctx.session_id, ctx.block_id)
-    end
-    return layer
+    return open_picker(ctx, "File Picker",
+      { rex_picker, "file", ctx.session_id, ctx.block_id, cwd, foreground_name },
+      { 0.08, 0.10, 0.84, 0.80 }, cwd)
   end,
 }
 
@@ -161,7 +137,7 @@ rex.action{
       error("the history picker needs a focused terminal pane", 0)
     end
 
-    local layer = open_terminal_layer(
+    return open_picker(ctx,
       "History Picker",
       {
         rex_picker,
@@ -178,10 +154,6 @@ rex.action{
       { 0.08, 0.10, 0.84, 0.80 },
       args.working_directory
     )
-    for _, block_id in ipairs(layer.block_ids) do
-      terminal_native_navigation_blocks[block_id] = true
-    end
-    return layer
   end,
 }
 
@@ -233,15 +205,11 @@ if password_picker_enabled then
         error("the password picker needs a focused terminal pane", 0)
       end
 
-      local layer = open_terminal_layer(
+      return open_picker(ctx,
         "Password Store",
         { rex_picker, "password", "--origin-block", ctx.block_id },
         { 0.18, 0.18, 0.64, 0.64 }
       )
-      for _, block_id in ipairs(layer.block_ids) do
-        terminal_native_navigation_blocks[block_id] = true
-      end
-      return layer
     end,
   }
 end
@@ -257,11 +225,43 @@ rex.action{
       error("the URL picker needs a focused terminal pane", 0)
     end
 
-    return open_terminal_layer(
+    return open_picker(ctx,
       "Open URL",
       { rex_picker, "url", ctx.session_id, ctx.block_id },
       { 0.25, 0.33, 0.50, 0.34 }
     )
+  end,
+}
+
+-- Native prompts fan out to all eligible clients. This opt-in pilot only
+-- offers fixed public docs; never pass scrollback or other user data here.
+rex.action{
+  name = "rex_docs_picker",
+  title = "Open Rex Documentation…",
+  category = "Help",
+  run = function()
+    if not rex.ui or not rex.ui.pick then
+      error("This action requires a Rex server and app with native prompt support", 0)
+    end
+    local items = {
+      { id = "customize/custom-ui", title = "Custom UI", icon = "document" },
+      { id = "reference/api", title = "Server API", icon = "server" },
+      { id = "reference/cli", title = "CLI Reference", icon = "terminal" },
+    }
+    local id, why = rex.ui.pick{ title = "Rex documentation", placeholder = "Filter pages", items = items }
+    if not id then
+      if why == "cancelled" then return false end
+      error("Unable to show documentation picker: " .. tostring(why), 0)
+    end
+    for _, page in ipairs(items) do
+      if id == page.id then
+        local opened, err = rex.exec({ "/usr/bin/open", "https://www.superlogical.com/rex/docs/" .. page.id },
+          { timeout = 3, stdout = false, stderr = false })
+        if not opened or not opened.ok then error("Unable to open documentation: " .. tostring(err), 0) end
+        return true
+      end
+    end
+    error("Unknown documentation page", 0)
   end,
 }
 
