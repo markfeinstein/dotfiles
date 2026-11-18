@@ -39,10 +39,12 @@ in
   };
 
   config = {
+    # The app reports itself as "Rex" since snapshot 2041 (preview.32);
+    # older builds report "Rex Beta".
     dotfiles.yabai.applicationRules = {
       rex-settings = {
         match = {
-          app.pattern = "Rex Beta";
+          app.pattern = "^Rex( Beta)?$";
           title.pattern = "^Settings - ";
         };
         effects.manage = false;
@@ -50,7 +52,7 @@ in
     }
     // lib.optionalAttrs config.dotfiles.yabai.fixedSpaceTargets {
       rex = {
-        match.app.pattern = "Rex Beta";
+        match.app.pattern = "^Rex( Beta)?$";
         effects = {
           space.index = 3;
           follow = true;
