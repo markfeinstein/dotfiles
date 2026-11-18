@@ -279,6 +279,14 @@ appears to cancel the prompt.
 Native prompts appear on every eligible connected Rex app; keep passwords,
 scrollback, and history in their existing terminal pickers.
 
+Agents can ask you a question on every connected Rex app, including your phone,
+with `rex do ask_user question="…"`. Add `options='["Yes","No"]'` for a list,
+`allow_other=true` to also accept typed text, `multiple=true` for several
+choices, and `timeout=` (seconds, 300 by default). The JSON result has
+`status` (`answered`, `cancelled`, `timeout`, `no_client`, `busy`,
+`unsupported`, or `failed`) and, when answered, `answer`. Never put secrets in
+the question.
+
 The managed picker floats use the close watcher, not an exiting terminal
 process, to restore the originating pane. When the watcher is disabled or
 cannot establish who owned focus, Rex's normal close behavior wins.
