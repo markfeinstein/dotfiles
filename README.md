@@ -301,15 +301,12 @@ one you choose; <kbd>Ctrl</kbd>+<kbd>Space</kbd> then <kbd>Y</kbd> copies it ins
 Rex's palette has a fixed width, so rows drop `https://` and `www.` and cut long
 links in the middle, keeping the host and the end; opening or copying always uses
 the full link, but typing filters only on the text shown. The list appears on
-every connected Rex app, so a token in a link reaches those devices too. The older floating picker is in
-the command palette as **Open URL from Scrollback (Terminal Picker)**.
+every connected Rex app, so a token in a link reaches those devices too.
 
 <kbd>Cmd</kbd>+<kbd>M</kbd> in a Pi pane opens a native picker of every model
 with its provider, context and output sizes, abilities, and input/output
 prices. It lists Pi's `enabledModels` when the profile sets them, and every
-available model otherwise. It has no scope toggle or catalog refresh; the older
-floating picker with both is still in the command palette as **Select Pi Model
-(Terminal Picker)**.
+available model otherwise. It has no scope toggle or catalog refresh.
 
 The managed picker floats use the close watcher, not an exiting terminal
 process, to restore the originating pane. When the watcher is disabled or
