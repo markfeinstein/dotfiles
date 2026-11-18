@@ -297,9 +297,10 @@ connected Rex app.
 
 <kbd>Cmd</kbd>+<kbd>M</kbd> in a Pi pane opens a native picker of every model
 with its provider, context and output sizes, abilities, and input/output
-prices. It has no scope toggle or catalog refresh; the older floating picker
-with both is still in the command palette as **Select Pi Model (Terminal
-Picker)**.
+prices. It lists Pi's `enabledModels` when the profile sets them, and every
+available model otherwise. It has no scope toggle or catalog refresh; the older
+floating picker with both is still in the command palette as **Select Pi Model
+(Terminal Picker)**.
 
 The managed picker floats use the close watcher, not an exiting terminal
 process, to restore the originating pane. When the watcher is disabled or

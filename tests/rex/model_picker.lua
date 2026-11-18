@@ -15,7 +15,10 @@ rex = {
   exec = function(argv, opts)
     assert(argv[1] == "/usr/bin/nc" and argv[2] == "-U" and argv[3]:match("/pi/model%-picker/abc%.sock$"))
     table.insert(sent, opts.stdin)
-    if opts.stdin:find('"list"', 1, true) then return { ok = true, stdout = list_reply } end
+    if opts.stdin:find('"list"', 1, true) then
+      assert(opts.stdin == '{"action":"list"}\n', "the list request leaves the scope to Pi")
+      return { ok = true, stdout = list_reply }
+    end
     return { ok = true, stdout = "ok\tanthropic/opus\n" }
   end,
   json = { decode = function(text) return decode[text] end },

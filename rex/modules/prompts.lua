@@ -194,7 +194,9 @@ return function(context)
         return false
       end
       local socket = model_socket(ctx.block_id)
-      local reply = model_bridge(socket, '{"action":"list","scope":"all"}')
+      -- Without a scope, Pi lists its enabledModels when they're set, or every
+      -- model when they aren't.
+      local reply = model_bridge(socket, '{"action":"list"}')
       local items = model_items(reply)
       if #items == 0 then error("Pi listed no models", 0) end
       -- Pi refuses a switch mid-turn, so say so before anyone chooses.
