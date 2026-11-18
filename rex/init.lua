@@ -265,6 +265,10 @@ load_module("pickers")({
   rose_pine_dark_theme = rose_pine_dark_theme,
 })
 
+load_module("prompts")({
+  terminal_shell = terminal_shell,
+})
+
 load_module("bindings")({
   prefix = prefix,
   password_picker_enabled = password_picker_enabled,
