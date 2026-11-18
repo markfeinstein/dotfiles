@@ -233,6 +233,38 @@ rex.action{
   end,
 }
 
+-- Native prompts fan out to all eligible clients. This opt-in pilot only
+-- offers fixed public docs; never pass scrollback or other user data here.
+rex.action{
+  name = "rex_docs_picker",
+  title = "Open Rex Documentation…",
+  category = "Help",
+  run = function()
+    if not rex.ui or not rex.ui.pick then
+      error("This action requires a Rex server and app with native prompt support", 0)
+    end
+    local items = {
+      { id = "customize/custom-ui", title = "Custom UI", icon = "document" },
+      { id = "reference/api", title = "Server API", icon = "server" },
+      { id = "reference/cli", title = "CLI Reference", icon = "terminal" },
+    }
+    local id, why = rex.ui.pick{ title = "Rex documentation", placeholder = "Filter pages", items = items }
+    if not id then
+      if why == "cancelled" then return false end
+      error("Unable to show documentation picker: " .. tostring(why), 0)
+    end
+    for _, page in ipairs(items) do
+      if id == page.id then
+        local opened, err = rex.exec({ "/usr/bin/open", "https://www.superlogical.com/rex/docs/" .. page.id },
+          { timeout = 3, stdout = false, stderr = false })
+        if not opened or not opened.ok then error("Unable to open documentation: " .. tostring(err), 0) end
+        return true
+      end
+    end
+    error("Unknown documentation page", 0)
+  end,
+}
+
 rex.action{
   name = "edit_scrollback",
   title = "Open Scrollback in Editor",

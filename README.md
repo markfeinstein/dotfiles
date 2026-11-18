@@ -269,6 +269,18 @@ curl -fsSL https://raw.githubusercontent.com/markfeinstein/dotfiles/main/bin/boo
       --flake github:OWNER/work-dotfiles/main --auth-github
 ```
 
+## Rex pickers
+
+Choose **Open Rex Documentation…** from the Rex command palette (or run
+`rex do rex_docs_picker`) for a native picker of three public reference pages.
+The browser opens on the server Mac. The action has no default key binding.
+Native prompts appear on every eligible connected Rex app; keep passwords,
+scrollback, and history in their existing terminal pickers.
+
+The managed picker floats use the close watcher, not an exiting terminal
+process, to restore the originating pane. When the watcher is disabled or
+cannot establish who owned focus, Rex's normal close behavior wins.
+
 ## Repository safety
 
 Local build outputs, editor artifacts, environment files, and common credential
