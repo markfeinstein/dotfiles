@@ -295,10 +295,11 @@ picks a project, asks for a branch, creates the worktree with `git-project
 worktree`, and opens it. Worktree paths and branch names appear on every
 connected Rex app.
 
-<kbd>Ctrl</kbd>+<kbd>Space</kbd> then <kbd>Option</kbd>+<kbd>M</kbd> is an
-experimental native version of the Pi model picker (<kbd>Cmd</kbd>+<kbd>M</kbd>).
-It lists every model with its context, output, and prices, but has no scope
-toggle, catalog refresh, or thinking and image columns.
+<kbd>Cmd</kbd>+<kbd>M</kbd> in a Pi pane opens a native picker of every model
+with its provider, context and output sizes, abilities, and input/output
+prices. It has no scope toggle or catalog refresh; the older floating picker
+with both is still in the command palette as **Select Pi Model (Terminal
+Picker)**.
 
 The managed picker floats use the close watcher, not an exiting terminal
 process, to restore the originating pane. When the watcher is disabled or

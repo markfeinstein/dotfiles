@@ -158,9 +158,9 @@ rex.action{
 }
 
 rex.action{
-  name = "model_picker",
-  title = "Select Pi Model",
-  description = "Choose a model for the focused Pi session in a floating native picker.",
+  name = "model_picker_terminal",
+  title = "Select Pi Model (Terminal Picker)",
+  description = "Choose a model for the focused Pi session in the floating rex-picker terminal picker.",
   category = "Pane",
   keywords = "pi model picker floating ai rust",
   run = function(ctx)

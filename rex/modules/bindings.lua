@@ -55,8 +55,6 @@ prefix("[BracketLeft]", "pane.copy_mode.enter")
 prefix("shift+[BracketLeft]", "swap_pane", { offset = -1 })
 prefix("shift+[BracketRight]", "swap_pane", { offset = 1 })
 prefix("o", "transpose_split")
--- Experimental native model picker; Cmd+M keeps the floating one.
-prefix("alt+m", "pi_model_picker_native")
 prefix("w", "worktree_switch")
 prefix("shift+w", "worktree_create")
 prefix("m", "pane.move_to_tab")

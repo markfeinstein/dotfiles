@@ -5,6 +5,7 @@ return function(context)
   local terminal_creator = context.terminal_creator
   local terminal_shell = context.terminal_shell
   local process_cwd = context.process_cwd
+  local normalized_process_name = context.normalized_process_name
   local git_project = context.git_project
   local home = os.getenv("HOME") or ""
 
@@ -99,9 +100,9 @@ return function(context)
     return nil
   end
 
-  -- Experimental: the Pi model list in a native prompt, to compare with the
-  -- floating rex-picker one (Cmd+M). It talks to the same rex-model-picker
-  -- bridge socket. Model names and prices are not private.
+  -- The Pi model list in a native prompt. It talks to the rex-model-picker
+  -- extension's bridge socket, as the older floating rex-picker one does.
+  -- Model names and prices are not private.
   local model_markers = { "✓ ", "★ ", "◆ " }
 
   local function model_socket(block_id)
@@ -154,6 +155,11 @@ return function(context)
             end
           end
           local ids = rex.json.decode(key) or {}
+          -- Columns 7 and 8 hold an icon when the model reasons or reads
+          -- images, and a dash when it doesn't.
+          local abilities = {}
+          if columns[7] ~= nil and columns[7] ~= "\226\128\148" then table.insert(abilities, "thinking") end
+          if columns[8] ~= nil and columns[8] ~= "\226\128\148" then table.insert(abilities, "images") end
           -- A leading "!" marks a window smaller than the session's context.
           local context_size = tostring(columns[3] or "?"):gsub("^!(.*)$", "%1 (too small)")
           table.insert(items, {
@@ -163,6 +169,7 @@ return function(context)
               tostring(ids[1] or columns[2] or "?"),
               context_size .. " context",
               tostring(columns[4] or "?") .. " output",
+              #abilities > 0 and table.concat(abilities, ", ") or nil,
             }, " · "),
             detail = trim((columns[5] or "") .. " / " .. trim(columns[6] or "")),
             icon = current and "star" or nil,
@@ -174,18 +181,26 @@ return function(context)
   end
 
   rex.action{
-    name = "pi_model_picker_native",
-    title = "Pi Model Picker (Native, Experimental)",
-    description = "Choose a model for the focused Pi session in Rex's native prompt instead of the floating picker.",
+    name = "model_picker",
+    title = "Select Pi Model",
+    description = "Choose a model for the focused Pi session in Rex's native prompt.",
     category = "Pane",
-    keywords = "pi model picker native experimental ai",
+    keywords = "pi model picker native ai",
     run = function(ctx)
       if ctx.block_id == nil then error("the model picker needs a focused Pi pane", 0) end
+      -- Like the floating picker, do nothing outside a Pi pane.
+      local process = rex.block.call(terminal_creator, "process", { block_id = ctx.block_id })
+      if process == nil or normalized_process_name(process.foreground) ~= "pi" then
+        return false
+      end
       local socket = model_socket(ctx.block_id)
-      local items = model_items(model_bridge(socket, '{"action":"list","scope":"all"}'))
+      local reply = model_bridge(socket, '{"action":"list","scope":"all"}')
+      local items = model_items(reply)
       if #items == 0 then error("Pi listed no models", 0) end
+      -- Pi refuses a switch mid-turn, so say so before anyone chooses.
+      local busy = reply:match("^[^\n]*;idle=0[;\t\n]") ~= nil
       local select, why, detail = rex.ui.pick{
-        title = "Pi model",
+        title = busy and "Pi model (Pi is busy; switch after this turn)" or "Pi model",
         placeholder = "Filter models",
         items = items,
       }
