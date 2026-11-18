@@ -230,6 +230,7 @@ in
             ".local/bin/rex-label-window".source = lib.getExe rexLabelWindow;
             ".pi/agent/extensions/rex-model-picker.ts".source = ../../../agents/extensions/rex-model-picker.ts;
             ".pi/agent/extensions/rex-tab-label.ts".source = ../../../agents/extensions/rex-tab-label.ts;
+            ".pi/agent/extensions/rex-worker-mute.ts".source = ../../../agents/extensions/rex-worker-mute.ts;
           };
         };
 

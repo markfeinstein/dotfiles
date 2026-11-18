@@ -50,6 +50,17 @@ and long names. `checks.aarch64-darwin.rex-worker-labels` runs it under Nix. The
 are mocked integration checks, not confirmation of live title hooks; they never
 rename operator tabs.
 
+## Worker tab sounds
+
+The `rex-worker-mute` Pi extension mutes a worker's tab in every connected Mac
+app while the worker is working, so Rex's activity sounds and badges come only
+from tabs that need you. A tab counts as a worker when its label is
+`subagent-<8 hex digits>` or starts with `Agent · `, or when pi-subagents set
+`PI_SUBAGENT_CHILD=1`. The tab is unmuted while a question tool is open and once
+the worker settles. Muting is best-effort and never blocks the worker.
+`node --test agents/extensions/rex-worker-mute.test.ts` covers the state changes
+with a fake Rex.
+
 ## Configuration surface
 
 Profiles can merge runtime settings without replacing the generated file:
