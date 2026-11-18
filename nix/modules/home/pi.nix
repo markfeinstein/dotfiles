@@ -57,7 +57,7 @@ let
   commonPackageSpecs = [
     powerlinePackageSource
     "npm:@aliou/pi-guardrails"
-    "npm:@juicesharp/rpiv-ask-user-question"
+    (toString (pkgs.callPackage ../../packages/rpiv-ask-user-question.nix { }))
     "npm:@juicesharp/rpiv-todo"
     "git:github.com/earendil-works/pi-claude-code"
     "npm:pi-intercom"
