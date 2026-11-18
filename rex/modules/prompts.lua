@@ -99,6 +99,105 @@ return function(context)
     return nil
   end
 
+  -- Experimental: the Pi model list in a native prompt, to compare with the
+  -- floating rex-picker one (Cmd+M). It talks to the same rex-model-picker
+  -- bridge socket. Model names and prices are not private.
+  local model_markers = { "✓ ", "★ ", "◆ " }
+
+  local function model_socket(block_id)
+    local state = os.getenv("XDG_STATE_HOME") or (home .. "/.local/state")
+    local safe = block_id:gsub("^block:", "")
+    safe = safe:gsub("[^%w._-]", "_")
+    return state .. "/pi/model-picker/" .. safe .. ".sock"
+  end
+
+  local function model_bridge(socket, request)
+    local result, err = rex.exec({ "/usr/bin/nc", "-U", socket }, { stdin = request .. "\n", timeout = 5 })
+    if result == nil then error("Unable to reach Pi: " .. tostring(err), 0) end
+    local reply = result.stdout
+    if reply:sub(1, 6) == "error\t" then error("Pi: " .. trim(reply:sub(7)), 0) end
+    if reply:sub(1, 2) ~= "ok" then error("Pi's model picker did not answer", 0) end
+    return reply
+  end
+
+  local function split_columns(text)
+    local columns = {}
+    for column in (text .. "  "):gmatch("(.-)%s%s+") do
+      if column ~= "" then table.insert(columns, column) end
+    end
+    return columns
+  end
+
+  local function model_items(reply)
+    local items = {}
+    local first = true
+    for line in reply:gmatch("[^\n]+") do
+      if first then
+        first = false
+      else
+        local key, select, display = line:match("^([^\t]*)\t([^\t]*)\t(.*)$")
+        if key ~= nil then
+          -- Drop the hidden search text, then the colors.
+          display = display:gsub("\27%[8m.*$", "")
+          display = display:gsub("\27%[[%d;]*m", "")
+          local columns = split_columns(trim(display))
+          local name, current = columns[1] or select, false
+          local stripped = true
+          while stripped do
+            stripped = false
+            for _, marker in ipairs(model_markers) do
+              if name:sub(1, #marker) == marker then
+                current = current or marker == model_markers[1]
+                name = name:sub(#marker + 1)
+                stripped = true
+              end
+            end
+          end
+          local ids = rex.json.decode(key) or {}
+          -- A leading "!" marks a window smaller than the session's context.
+          local context_size = tostring(columns[3] or "?"):gsub("^!(.*)$", "%1 (too small)")
+          table.insert(items, {
+            id = select,
+            title = name,
+            subtitle = table.concat({
+              tostring(ids[1] or columns[2] or "?"),
+              context_size .. " context",
+              tostring(columns[4] or "?") .. " output",
+            }, " · "),
+            detail = trim((columns[5] or "") .. " / " .. trim(columns[6] or "")),
+            icon = current and "star" or nil,
+          })
+        end
+      end
+    end
+    return items
+  end
+
+  rex.action{
+    name = "pi_model_picker_native",
+    title = "Pi Model Picker (Native, Experimental)",
+    description = "Choose a model for the focused Pi session in Rex's native prompt instead of the floating picker.",
+    category = "Pane",
+    keywords = "pi model picker native experimental ai",
+    run = function(ctx)
+      if ctx.block_id == nil then error("the model picker needs a focused Pi pane", 0) end
+      local socket = model_socket(ctx.block_id)
+      local items = model_items(model_bridge(socket, '{"action":"list","scope":"all"}'))
+      if #items == 0 then error("Pi listed no models", 0) end
+      local select, why, detail = rex.ui.pick{
+        title = "Pi model",
+        placeholder = "Filter models",
+        items = items,
+      }
+      if select == nil then
+        if why == "cancelled" then return false end
+        error("Unable to show the model picker: " .. tostring(why) .. " " .. tostring(detail or ""), 0)
+      end
+      model_bridge(socket, select)
+      return true
+    end,
+  }
+
   -- Worktree paths and branch names appear on every connected app.
   rex.action{
     name = "worktree_switch",
