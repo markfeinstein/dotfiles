@@ -266,8 +266,13 @@ load_module("pickers")({
   rose_pine_dark_theme = rose_pine_dark_theme,
 })
 
+load_module("url_picker")({
+  terminal_creator = terminal_creator,
+})
+
 load_module("prompts")({
   terminal_creator = terminal_creator,
+  normalized_process_name = normalized_process_name,
   terminal_shell = terminal_shell,
   process_cwd = common.process_cwd,
   git_project = git_project,

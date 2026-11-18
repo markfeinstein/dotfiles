@@ -276,8 +276,8 @@ Press <kbd>Ctrl</kbd>+<kbd>Space</kbd> then <kbd>?</kbd> (or run
 The browser opens on the server Mac. Starting **Open Rex Documentation…** from
 the command palette doesn't show the picker, because the closing palette
 appears to cancel the prompt.
-Native prompts appear on every eligible connected Rex app; keep passwords,
-scrollback, and history in their existing terminal pickers.
+Native prompts appear on every eligible connected Rex app; keep passwords and
+history in their existing terminal pickers.
 
 Agents can ask you a question on every connected Rex app, including your phone,
 with `rex do ask_user question="…"`. Add `options='["Yes","No"]'` for a list,
@@ -294,6 +294,19 @@ new tab there. <kbd>Ctrl</kbd>+<kbd>Space</kbd> then <kbd>Shift</kbd>+<kbd>W</kb
 picks a project, asks for a branch, creates the worktree with `git-project
 worktree`, and opens it. Worktree paths and branch names appear on every
 connected Rex app.
+
+<kbd>Cmd</kbd>+<kbd>L</kbd> lists the HTTP(S) links in the focused pane's newest
+20,000 lines, newest first, including clickable terminal links, and opens the
+one you choose; <kbd>Ctrl</kbd>+<kbd>Space</kbd> then <kbd>Y</kbd> copies it instead.
+Rex's palette has a fixed width, so rows drop `https://` and `www.` and cut long
+links in the middle, keeping the host and the end; opening or copying always uses
+the full link, but typing filters only on the text shown. The list appears on
+every connected Rex app, so a token in a link reaches those devices too.
+
+<kbd>Cmd</kbd>+<kbd>M</kbd> in a Pi pane opens a native picker of every model
+with its provider, context and output sizes, abilities, and input/output
+prices. It lists Pi's `enabledModels` when the profile sets them, and every
+available model otherwise. It has no scope toggle or catalog refresh.
 
 The managed picker floats use the close watcher, not an exiting terminal
 process, to restore the originating pane. When the watcher is disabled or

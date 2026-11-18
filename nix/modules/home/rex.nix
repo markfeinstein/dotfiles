@@ -247,6 +247,7 @@ in
           "rex/modules/pickers.lua".source = "${rexConfigSource}/modules/pickers.lua";
           "rex/modules/bindings.lua".source = "${rexConfigSource}/modules/bindings.lua";
           "rex/modules/prompts.lua".source = "${rexConfigSource}/modules/prompts.lua";
+          "rex/modules/url_picker.lua".source = "${rexConfigSource}/modules/url_picker.lua";
           "rex/theme-policy.lua".text = ''
             return {
               dark_theme = os.getenv("HOME") .. "/.config/rex/themes/${rexDarkThemeName}",

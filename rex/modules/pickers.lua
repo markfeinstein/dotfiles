@@ -43,38 +43,6 @@ return function(context)
     return layer
   end
 
-  local function find_floating_layer_by_label(view, label)
-    for _, window in ipairs(view.windows or {}) do
-      if window.window_id == view.active_window_id then
-        for index = #(window.layers or {}), 1, -1 do
-          local layer = window.layers[index]
-          if layer.kind == "floating" then
-            for _, block in ipairs(layer.blocks or {}) do
-              if block.label == label then
-                return layer
-              end
-            end
-          end
-        end
-      end
-    end
-    return nil
-  end
-
-  local function is_block_zoomed(view, block_id)
-    for _, window in ipairs(view.windows or {}) do
-      if window.window_id == view.active_window_id then
-        return window.zoomed_block_id == block_id
-      end
-    end
-    return false
-  end
-
-  local function open_model_picker(ctx, restore_zoom)
-    return open_picker(ctx, "Pi Model Picker", { rex_picker, "pi-model", ctx.block_id },
-      { 0.26, 0.28, 0.48, 0.44 }, nil, restore_zoom)
-  end
-
 rex.action{
   name = "file_picker",
   title = "Open File Picker",
@@ -157,42 +125,6 @@ rex.action{
   end,
 }
 
-rex.action{
-  name = "model_picker",
-  title = "Select Pi Model",
-  description = "Choose a model for the focused Pi session in a floating native picker.",
-  category = "Pane",
-  keywords = "pi model picker floating ai rust",
-  run = function(ctx)
-    if ctx.session_id == nil or ctx.block_id == nil then
-      error("the Pi model picker needs a focused terminal pane", 0)
-    end
-
-    local view, view_err = rex.session.view{}
-    if view == nil then
-      error(view_err, 0)
-    end
-    local existing = find_floating_layer_by_label(view, "Pi Model Picker")
-    if existing ~= nil then
-      local closed, close_err = rex.session.close_layer{ layer_id = existing.layer_id }
-      if closed == nil then
-        error(close_err, 0)
-      end
-      return { layer_id = existing.layer_id, closed = true }
-    end
-
-    local process, process_err = rex.block.call(terminal_creator, "process")
-    if process == nil then
-      error(process_err, 0)
-    end
-    if normalized_process_name(process.foreground) ~= "pi" then
-      return false
-    end
-
-    return open_model_picker(ctx, is_block_zoomed(view, ctx.block_id))
-  end,
-}
-
 if password_picker_enabled then
   rex.action{
     name = "password_picker",
@@ -214,27 +146,8 @@ if password_picker_enabled then
   }
 end
 
-rex.action{
-  name = "open_url_picker",
-  title = "Open URL from Scrollback",
-  description = "Choose an HTTP(S) URL from the focused terminal's newest 20,000 lines.",
-  category = "Pane",
-  keywords = "link picker browser scrollback rust",
-  run = function(ctx)
-    if ctx.session_id == nil or ctx.block_id == nil then
-      error("the URL picker needs a focused terminal pane", 0)
-    end
-
-    return open_picker(ctx,
-      "Open URL",
-      { rex_picker, "url", ctx.session_id, ctx.block_id },
-      { 0.25, 0.33, 0.50, 0.34 }
-    )
-  end,
-}
-
 -- Native prompts fan out to all eligible clients. This opt-in pilot only
--- offers fixed public docs; never pass scrollback or other user data here.
+-- offers fixed public docs; never pass raw scrollback or other user data here.
 rex.action{
   name = "rex_docs_picker",
   title = "Open Rex Documentation…",
