@@ -15,6 +15,9 @@ source_dir="${DOTFILES_SOURCE_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles/so
 source_file=''
 persisted_flake=''
 repo="${DOTFILES_REPO:-}"
+# Pi runs without extensions here, so its default model may be one this
+# account can't use; profiles name one that works.
+commit_model="${DOTFILES_COMMIT_MODEL:-}"
 source_mode=auto
 mode=switch
 dry_run=0
@@ -84,7 +87,8 @@ Remote source precedence:
 
 Environment:
   DOTFILES_PROFILE, DOTFILES_PROFILE_FILE, DOTFILES_SOURCE_DIR, DOTFILES_HOST,
-  DOTFILES_FLAKE, DOTFILES_PERSONAL_FLAKE, DOTFILES_WORK_FLAKE, DOTFILES_REPO
+  DOTFILES_FLAKE, DOTFILES_PERSONAL_FLAKE, DOTFILES_WORK_FLAKE, DOTFILES_REPO,
+  DOTFILES_COMMIT_MODEL (Pi model for commit subjects, such as openai/gpt-6.2-astra)
 HELP
 }
 
@@ -629,12 +633,15 @@ update_lock() {
 commit_index() {
   git diff --cached --quiet && return 0
   local subject=$manual_message pi_output diff_file
+  local -a pi_args=(--print --no-session --no-tools --no-extensions --no-skills --no-context-files)
+  if [[ -n "$commit_model" ]]; then
+    pi_args+=(--model "$commit_model" --thinking low)
+  fi
   if [[ -z "$subject" ]] && command -v pi >/dev/null 2>&1; then
     confirm 'Send the approved staged patch to Pi for a commit subject?' || fail 'Pi review declined'
     diff_file="$tmp_dir/commit.diff"
     git diff --cached --no-ext-diff -- . ':(exclude)flake.lock' >"$diff_file"
-    if pi_output=$(head -c 60000 "$diff_file" | pi --print --no-session --no-tools \
-        --no-extensions --no-skills --no-context-files \
+    if pi_output=$(head -c 60000 "$diff_file" | pi "${pi_args[@]}" \
         'Generate exactly one concise conventional commit subject (type(scope): description). No markdown or explanation.'); then
       subject=$(printf '%s\n' "$pi_output" | sed -n '1p')
     fi
