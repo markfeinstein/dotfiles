@@ -311,6 +311,7 @@ in
             elif [ -n "''${DRY_RUN_CMD:-}" ]; then
               "$rex" terminfo setup --dry-run --json
               echo "Would reload Rex config when a local server is running"
+              echo "Would reload key bindings in each connected Rex app on this Mac"
               echo "Would import the managed Rosé Pine themes when a unique app client is connected"
             else
               if ! terminfo_output="$("$rex" terminfo setup --json)"; then
@@ -321,6 +322,18 @@ in
               if ! "$rex" --autostart=false config reload >/dev/null 2>&1; then
                 echo "Skipping Rex config reload: no available local server" >&2
               else
+                # A server reload alone can leave this Mac's app on stale key
+                # bindings, so ask each local app to reload as well.
+                local_apps="$(
+                  "$rex" --autostart=false client ls --json 2>/dev/null |
+                    ${lib.getExe pkgs.jq} -r '.clients[] | select(.info.kind == "app" and .principal.kind == "peer" and .connection_state == "connected") | .client_id'
+                )" || local_apps=""
+                for client_id in $local_apps; do
+                  if ! "$rex" --autostart=false --timeout 5s -C "$client_id" do client.config.reload >/dev/null 2>&1; then
+                    echo "Skipping Rex app key binding reload: $client_id did not respond" >&2
+                  fi
+                done
+
                 theme_import_failed=false
                 for theme_path in "''${rose_pine_themes[@]}"; do
                   if ! "$rex" --autostart=false do client.theme.import path="$theme_path" >/dev/null 2>&1; then
