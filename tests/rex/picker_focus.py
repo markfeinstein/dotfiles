@@ -53,7 +53,7 @@ def test(tmp):
             '--all', '--for', '35s'], env=env, stdout=subprocess.DEVNULL))
         for move_away in (False, True):
             call('api', 'call', '-s', session, 'session.focus_block', json.dumps({'block_id': origin}))
-            layer = call('do', '-s', session, '-b', origin, 'open_url_picker', '--json')
+            layer = call('do', '-s', session, '-b', origin, 'open_url_picker_terminal', '--json')
             marker = tmp / 'rex/picker-focus' / (layer['block_ids'][0].replace(':', '_') + '.tsv')
             until(marker.exists)
             if move_away:

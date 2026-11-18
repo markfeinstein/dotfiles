@@ -215,9 +215,9 @@ if password_picker_enabled then
 end
 
 rex.action{
-  name = "open_url_picker",
-  title = "Open URL from Scrollback",
-  description = "Choose an HTTP(S) URL from the focused terminal's newest 20,000 lines.",
+  name = "open_url_picker_terminal",
+  title = "Open URL from Scrollback (Terminal Picker)",
+  description = "Choose an HTTP(S) URL from the focused terminal's newest 20,000 lines in the floating rex-picker.",
   category = "Pane",
   keywords = "link picker browser scrollback rust",
   run = function(ctx)
@@ -234,7 +234,7 @@ rex.action{
 }
 
 -- Native prompts fan out to all eligible clients. This opt-in pilot only
--- offers fixed public docs; never pass scrollback or other user data here.
+-- offers fixed public docs; never pass raw scrollback or other user data here.
 rex.action{
   name = "rex_docs_picker",
   title = "Open Rex Documentation…",

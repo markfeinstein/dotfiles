@@ -276,8 +276,8 @@ Press <kbd>Ctrl</kbd>+<kbd>Space</kbd> then <kbd>?</kbd> (or run
 The browser opens on the server Mac. Starting **Open Rex Documentation…** from
 the command palette doesn't show the picker, because the closing palette
 appears to cancel the prompt.
-Native prompts appear on every eligible connected Rex app; keep passwords,
-scrollback, and history in their existing terminal pickers.
+Native prompts appear on every eligible connected Rex app; keep passwords and
+history in their existing terminal pickers, and never send raw scrollback.
 
 Agents can ask you a question on every connected Rex app, including your phone,
 with `rex do ask_user question="…"`. Add `options='["Yes","No"]'` for a list,
@@ -294,6 +294,14 @@ new tab there. <kbd>Ctrl</kbd>+<kbd>Space</kbd> then <kbd>Shift</kbd>+<kbd>W</kb
 picks a project, asks for a branch, creates the worktree with `git-project
 worktree`, and opens it. Worktree paths and branch names appear on every
 connected Rex app.
+
+<kbd>Cmd</kbd>+<kbd>L</kbd> lists the HTTP(S) links in the focused pane's newest
+20,000 lines, newest first, including clickable terminal links, and opens the
+one you choose; <kbd>Ctrl</kbd>+<kbd>Space</kbd> then <kbd>Y</kbd> copies it instead.
+Because the list appears on every connected app, rows show only the host and
+path: queries, fragments, sign-in details, and token-like path segments are
+hidden, and the full link never leaves this Mac. The older floating picker is in
+the command palette as **Open URL from Scrollback (Terminal Picker)**.
 
 <kbd>Cmd</kbd>+<kbd>M</kbd> in a Pi pane opens a native picker of every model
 with its provider, context and output sizes, abilities, and input/output
