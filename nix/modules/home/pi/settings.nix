@@ -107,7 +107,8 @@ in
     };
     secondaryOverflow = "drop";
     path.mode = "basename";
-    git.polling = "full";
+    # Poll the branch only: no background `git status --porcelain` calls.
+    git.polling = "branch";
     git.statusTtlMs = 15000;
     model.showThinkingLevel = false;
     context.format = "tokens";
@@ -143,7 +144,8 @@ in
     subagents.enable = false;
     handoff.enable = false;
     autoTitle = {
-      model = "github-copilot/gpt-5.6-luna";
+      # The session's own model, so titles never fall back across providers.
+      model = "session";
       thinkingLevel = "off";
       refreshTurns = 12;
       tokenBudget = 512;
