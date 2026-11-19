@@ -169,3 +169,48 @@ nix build --no-link '.#checks.aarch64-darwin.obsidian-capture'
 These are headless tests. Prompt responses are supplied programmatically, and
 Blink/obsidian-ls behavior is exercised without a live UI. They do not verify an
 activated profile, a live Obsidian desktop vault, or interactive menu rendering.
+
+## Periodic notes
+
+`dotfiles.neovim.obsidian.periodic.enable` adds commands for the intervals of
+Obsidian's Periodic Notes plugin. It is off by default.
+
+```vim
+:ObsidianPeriodic {daily|weekly|monthly|quarterly|yearly} [YYYY-MM-DD]
+:ObsidianWeekly [YYYY-MM-DD]
+:ObsidianMonthly [YYYY-MM-DD]
+:ObsidianQuarterly [YYYY-MM-DD]
+:ObsidianYearly [YYYY-MM-DD]
+```
+
+`periodic.settings` has the same shape as the desktop plugin's `data.json`:
+a vault-relative `folder`, Moment `format`, and extensionless `template` for
+each interval. Point both editors at one source so they create identical paths:
+
+```nix
+dotfiles.neovim.obsidian.periodic = {
+  enable = true;
+  settings = lib.importJSON ./obsidian/periodic-notes.json;
+};
+```
+
+The default settings put `Weekly`, `Monthly`, `Quarterly`, and `Annual` folders
+under the daily-notes folder, with `<Interval> Review` templates in the templates
+folder. Weeks are ISO weeks: January 1, 2027 belongs to `2026-W53`. An evaluation
+assertion requires the daily entry to match `dailyNotes.folder` and the Moment
+equivalent of `dailyNotes.dateFormat` (only `%Y %m %B %d %A` are translated).
+
+Commands select the workspace that contains the current buffer, falling back to
+the first. Existing notes and loaded buffers are opened as they are: no template
+is reapplied and unsaved edits are not written. New notes use obsidian.nvim's note
+and template APIs. Template `{{date}}` substitutions resolve to the start of the
+target period, which also fixes historical dates for native daily notes; ordinary
+notes keep the default substitution. Use explicit `{{date:YYYY-MM-DD}}` in
+template properties, because Periodic Notes on desktop can replace a bare
+`{{date}}` with the period filename. Unsafe paths, symlinks, missing templates,
+and invalid dates are rejected.
+
+`checks.<system>.obsidian-periodic` exercises the packaged commands in temporary
+vaults: lazy loading, every interval, ISO week-years, leap days, DST weeks,
+multiple workspaces, unsaved-buffer preservation, and unsafe-path rejection.
+It does not check a live Obsidian desktop vault.

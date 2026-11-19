@@ -466,3 +466,8 @@ require("mark.obsidian_capture").setup({
 	ensure_loaded = ensure_obsidian_loaded,
 	profile = obsidian_profile,
 })
+local periodic = obsidian_profile.periodic or {}
+require("mark.obsidian_periodic").setup({
+	enabled = periodic.enabled == true and #vault_roots > 0,
+	settings = periodic.settings,
+})
