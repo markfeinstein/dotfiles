@@ -369,6 +369,10 @@ in
               template = name: "${cfg.obsidian.templates.folder}/${name}";
             in
             {
+              # Desktop-only state, so the default is a complete data.json.
+              showGettingStartedBanner = false;
+              hasMigratedDailyNoteSettings = true;
+              hasMigratedWeeklyNoteSettings = true;
               daily = {
                 enabled = true;
                 folder = journals;
@@ -404,7 +408,8 @@ in
           description = ''
             Obsidian Periodic Notes plugin settings (its `data.json`): vault-relative
             `folder`, Moment `format`, and extensionless `template` per interval.
-            Use the same object as the desktop plugin, for example with
+            The default is a complete desktop `data.json`; render it with
+            `nix eval --json` or replace it with the desktop file through
             `lib.importJSON`, so both editors create identical paths.
           '';
         };

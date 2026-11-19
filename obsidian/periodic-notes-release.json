@@ -1,0 +1,10 @@
+{
+  "repository": "https://github.com/liamcain/obsidian-periodic-notes",
+  "version": "0.0.17",
+  "release": "https://github.com/liamcain/obsidian-periodic-notes/releases/tag/0.0.17",
+  "sha256": {
+    "main.js": "ccf1a18673693d1036fc7614c3af9d23e5edfe425d1053df81dddcc29b1f8b0e",
+    "manifest.json": "bda29323f75d3b3fcbda489335825b97fe4b574914d04635e9a7e67f2414049c",
+    "styles.css": "613f3985d4c84900ed2e25d8a46efb7b3ace6889fb71217055084084eb146238"
+  }
+}

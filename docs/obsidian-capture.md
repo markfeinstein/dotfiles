@@ -141,6 +141,29 @@ The QuickAdd JavaScript script is independent of this migration. Do not remove,
 install, or overwrite the live-vault script as part of adopting the shared
 Neovim implementation.
 
+## QuickAdd question script
+
+`obsidian/quickadd/new-question.js` is the desktop counterpart of
+`:ObsidianQuestion`: a QuickAdd user script for a macro such as **New
+question**. It uses the same filename, `date`, `asked_in`, and log-insertion
+rules, including placement under the log heading in daily notes and
+cursor-local links elsewhere. Existing question notes are linked, never
+overwritten.
+
+Nix does not install it. Copy it into the vault (for example under
+`8 - Resources/Scripts/`), after comparing it with any existing copy, and add it
+to a QuickAdd macro. Its QuickAdd settings default to the shared Neovim layout:
+
+| Setting | Default |
+| --- | --- |
+| Questions folder | `2 - Notes/Knowledge/Questions` |
+| Question template | `8 - Resources/Templates/Question.md` |
+| Daily notes folder | `1 - Journals` |
+| Log heading | `## Log` |
+
+Blank settings fall back to these defaults. Keep them in step with the vault's
+`dotfiles.neovim.obsidian` options when either is changed.
+
 ## Verification
 
 The flake exports `checks.<system>.obsidian-capture`. It runs the actual generated
@@ -160,10 +183,16 @@ vaults. Coverage includes:
 - people lookup, Blink registration idempotence, and real `obsidian-ls` note,
   alias, and heading completion.
 
-Run the focused check without activation:
+`checks.<system>.obsidian-quickadd` runs the QuickAdd script with mocked
+Obsidian editor and vault APIs. Both checks read `nix/tests/question-log-cases.json`,
+so the two implementations cannot drift on log placement. Set `QUESTION_SCRIPT`
+to test an installed copy with `node --test nix/tests/new-question.test.cjs`.
+
+Run the focused checks without activation:
 
 ```sh
-nix build --no-link '.#checks.aarch64-darwin.obsidian-capture'
+nix build --no-link '.#checks.aarch64-darwin.obsidian-capture' \
+  '.#checks.aarch64-darwin.obsidian-quickadd'
 ```
 
 These are headless tests. Prompt responses are supplied programmatically, and
@@ -185,7 +214,19 @@ Obsidian's Periodic Notes plugin. It is off by default.
 
 `periodic.settings` has the same shape as the desktop plugin's `data.json`:
 a vault-relative `folder`, Moment `format`, and extensionless `template` for
-each interval. Point both editors at one source so they create identical paths:
+each interval. Both editors must use one object so they create identical paths.
+
+The default settings put `Weekly`, `Monthly`, `Quarterly`, and `Annual` folders
+under the daily-notes folder, with `<Interval> Review` templates in the templates
+folder. The default is a complete desktop `data.json`, including the plugin's
+migration flags, so a profile can render it for the desktop plugin:
+
+```sh
+nix eval --json \
+  '.#homeConfigurations.aarch64-darwin-work.config.dotfiles.neovim.obsidian.periodic.settings'
+```
+
+A vault with different desktop settings can instead pass its file to Neovim:
 
 ```nix
 dotfiles.neovim.obsidian.periodic = {
@@ -194,9 +235,17 @@ dotfiles.neovim.obsidian.periodic = {
 };
 ```
 
-The default settings put `Weekly`, `Monthly`, `Quarterly`, and `Annual` folders
-under the daily-notes folder, with `<Interval> Review` templates in the templates
-folder. Weeks are ISO weeks: January 1, 2027 belongs to `2026-W53`. An evaluation
+With the default layout:
+
+| Interval | Format/path under the daily-notes folder | Template |
+| --- | --- | --- |
+| Daily | `YYYY/MM-MMMM/YYYY-MM-DD-dddd` | `Daily Note` |
+| Weekly | `Weekly/GGGG-[W]WW` | `Weekly Review` |
+| Monthly | `Monthly/YYYY-MM` | `Monthly Review` |
+| Quarterly | `Quarterly/YYYY-[Q]Q` | `Quarterly Review` |
+| Yearly | `Annual/YYYY` | `Annual Review` |
+
+Formats are Moment tokens; bracketed text is literal. Weeks are ISO weeks: January 1, 2027 belongs to `2026-W53`. An evaluation
 assertion requires the daily entry to match `dailyNotes.folder` and the Moment
 equivalent of `dailyNotes.dateFormat` (only `%Y %m %B %d %A` are translated).
 
@@ -210,7 +259,27 @@ template properties, because Periodic Notes on desktop can replace a bare
 `{{date}}` with the period filename. Unsafe paths, symlinks, missing templates,
 and invalid dates are rejected.
 
+### Desktop companions
+
+The desktop side is installed per vault, not by Nix activation:
+
+- `obsidian/periodic-notes-release.json` pins the reviewed
+  [Periodic Notes](https://github.com/liamcain/obsidian-periodic-notes) 0.0.17
+  release by the SHA-256 of `main.js`, `manifest.json`, and `styles.css`.
+  Compare downloaded or installed assets in
+  `.obsidian/plugins/periodic-notes/` before enabling the plugin.
+- For the Calendar plugin, use `weekStart: monday`, `localeOverride: en-gb`, and
+  the same weekly folder, format, and template with weekly note links enabled.
+  Point the core Daily Notes plugin at the same daily settings.
+- `obsidian/templates/Monthly Review.md` is a starting monthly template. Copy it
+  into the vault's templates folder only when the vault has none; existing
+  vault templates are vault-owned.
+
+Template date properties should use explicit `{{date:YYYY-MM-DD}}`. Quarterly
+templates can use `{{date:YYYY-[Q]Q}}` and yearly templates `{{date:YYYY}}`.
+
 `checks.<system>.obsidian-periodic` exercises the packaged commands in temporary
-vaults: lazy loading, every interval, ISO week-years, leap days, DST weeks,
+vaults and checks that the default settings equal a desktop-written
+`data.json`: lazy loading, every interval, ISO week-years, leap days, DST weeks,
 multiple workspaces, unsaved-buffer preservation, and unsafe-path rejection.
 It does not check a live Obsidian desktop vault.

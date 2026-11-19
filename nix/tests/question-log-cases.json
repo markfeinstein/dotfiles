@@ -70,5 +70,149 @@
     "question": "Why configurable capture",
     "time": "09:00",
     "expected": ["## Activity", "- 08:00 Earlier", "- **09:00** - ? [[Why configurable capture]]", "- 10:00 Later"]
+  },
+  {
+    "name": "fill template placeholder",
+    "heading": "## Log",
+    "input": ["# Today", "", "## Log", "", "- ", "", "> [!question]- Questions today", "> body"],
+    "question": "Why",
+    "time": "10:30",
+    "expected": ["# Today", "", "## Log", "", "- **10:30** - ? [[Why]]", "", "> [!question]- Questions today", "> body"]
+  },
+  {
+    "name": "insert between timestamped blocks",
+    "heading": "## Log",
+    "input": ["## Log", "", "- 09:00 Earlier", "  - details", "- 11:00 Later", "", "> [!tip]- Markers"],
+    "question": "Why",
+    "time": "10:30",
+    "expected": ["## Log", "", "- 09:00 Earlier", "  - details", "- **10:30** - ? [[Why]]", "- 11:00 Later", "", "> [!tip]- Markers"]
+  },
+  {
+    "name": "append above callouts not inside them",
+    "heading": "## Log",
+    "input": ["## Log", "", "- 09:00 Earlier", "  - details", "", "> [!question]- Questions today", "> **Asked**", "", "> [!tip]- Markers"],
+    "question": "Why",
+    "time": "10:30",
+    "expected": ["## Log", "", "- 09:00 Earlier", "  - details", "- **10:30** - ? [[Why]]", "", "> [!question]- Questions today", "> **Asked**", "", "> [!tip]- Markers"]
+  },
+  {
+    "name": "preserve untimed history",
+    "heading": "## Log",
+    "input": ["## Log", "", "- Untimed earlier item", "- Another item", "", "> [!note]- Footer"],
+    "question": "Why",
+    "time": "10:30",
+    "expected": ["## Log", "", "- Untimed earlier item", "- Another item", "- **10:30** - ? [[Why]]", "", "> [!note]- Footer"]
+  },
+  {
+    "name": "stable equal timestamps",
+    "heading": "## Log",
+    "input": ["## Log", "", "- 10:30 Same minute", "  continuation", "- 10:31 Later"],
+    "question": "Why",
+    "time": "10:30",
+    "expected": ["## Log", "", "- 10:30 Same minute", "  continuation", "- **10:30** - ? [[Why]]", "- 10:31 Later"]
+  },
+  {
+    "name": "bold and bracketed timestamps",
+    "heading": "## Log",
+    "input": ["## Log", "", "- **09:00** Earlier", "- [11:00] Later"],
+    "question": "Why",
+    "time": "10:30",
+    "expected": ["## Log", "", "- **09:00** Earlier", "- **10:30** - ? [[Why]]", "- [11:00] Later"]
+  },
+  {
+    "name": "bold dash timestamps sort chronologically",
+    "heading": "## Log",
+    "input": ["## Log", "", "- **09:00** - Earlier", "  - details", "- **11:00** - Later", "", "> [!tip]- Footer"],
+    "question": "Why",
+    "time": "10:30",
+    "expected": ["## Log", "", "- **09:00** - Earlier", "  - details", "- **10:30** - ? [[Why]]", "- **11:00** - Later", "", "> [!tip]- Footer"]
+  },
+  {
+    "name": "bold dash equal timestamps stay stable",
+    "heading": "## Log",
+    "input": ["## Log", "", "- **10:30** - Same minute", "  continuation", "- **10:31** - Later"],
+    "question": "Why",
+    "time": "10:30",
+    "expected": ["## Log", "", "- **10:30** - Same minute", "  continuation", "- **10:30** - ? [[Why]]", "- **10:31** - Later"]
+  },
+  {
+    "name": "mixed timestamp styles preserve history",
+    "heading": "## Log",
+    "input": ["## Log", "", "- 08:00 Plain", "- **09:00** Bold only", "- [10:00] Bracketed", "- **11:00** - New style"],
+    "question": "Why",
+    "time": "10:30",
+    "expected": ["## Log", "", "- 08:00 Plain", "- **09:00** Bold only", "- [10:00] Bracketed", "- **10:30** - ? [[Why]]", "- **11:00** - New style"]
+  },
+  {
+    "name": "nested timestamps stay with parent",
+    "heading": "## Log",
+    "input": ["## Log", "", "- 09:00 Earlier", "  - 11:00 Nested detail", "", "> [!tip]- Footer"],
+    "question": "Why",
+    "time": "10:30",
+    "expected": ["## Log", "", "- 09:00 Earlier", "  - 11:00 Nested detail", "- **10:30** - ? [[Why]]", "", "> [!tip]- Footer"]
+  },
+  {
+    "name": "stop at next heading",
+    "heading": "## Log",
+    "input": ["## Log", "", "- 09:00 Earlier", "## Other", "- 08:00 Not a log entry"],
+    "question": "Why",
+    "time": "10:30",
+    "expected": ["## Log", "", "- 09:00 Earlier", "- **10:30** - ? [[Why]]", "", "## Other", "- 08:00 Not a log entry"]
+  },
+  {
+    "name": "create missing log without rewriting body",
+    "heading": "## Log",
+    "input": ["# Today", "", "Body"],
+    "question": "Why",
+    "time": "10:30",
+    "expected": ["# Today", "", "Body", "", "## Log", "", "- **10:30** - ? [[Why]]"]
+  },
+  {
+    "name": "empty log without placeholder",
+    "heading": "## Log",
+    "input": ["## Log", "", "> [!tip]- Footer"],
+    "question": "Why",
+    "time": "10:30",
+    "expected": ["## Log", "", "- **10:30** - ? [[Why]]", "", "> [!tip]- Footer"]
+  },
+  {
+    "name": "empty log directly before callout",
+    "heading": "## Log",
+    "input": ["## Log", "> [!tip]- Footer"],
+    "question": "Why",
+    "time": "10:30",
+    "expected": ["## Log", "", "- **10:30** - ? [[Why]]", "", "> [!tip]- Footer"]
+  },
+  {
+    "name": "append at EOF",
+    "heading": "## Log",
+    "input": ["## Log", "", "- 09:00 Earlier"],
+    "question": "Why",
+    "time": "10:30",
+    "expected": ["## Log", "", "- 09:00 Earlier", "- **10:30** - ? [[Why]]"]
+  },
+  {
+    "name": "fill trailing placeholder",
+    "heading": "## Log",
+    "input": ["## Log", "", "- 09:00 Earlier", "- ", "", "> [!tip]- Footer"],
+    "question": "Why",
+    "time": "10:30",
+    "expected": ["## Log", "", "- 09:00 Earlier", "- **10:30** - ? [[Why]]", "", "> [!tip]- Footer"]
+  },
+  {
+    "name": "ignore fenced fake log",
+    "heading": "## Log",
+    "input": ["```md", "## Log", "- 11:00 Example", "```", "## Log", "", "- "],
+    "question": "Why",
+    "time": "10:30",
+    "expected": ["```md", "## Log", "- 11:00 Example", "```", "## Log", "", "- **10:30** - ? [[Why]]"]
+  },
+  {
+    "name": "ignore fenced timestamps and headings",
+    "heading": "## Log",
+    "input": ["## Log", "", "- 09:00 Earlier", "~~~md", "- 11:00 Example", "## Not a boundary", "> [!tip] Not a boundary", "~~~", "", "> [!note]- Footer"],
+    "question": "Why",
+    "time": "10:30",
+    "expected": ["## Log", "", "- 09:00 Earlier", "~~~md", "- 11:00 Example", "## Not a boundary", "> [!tip] Not a boundary", "~~~", "- **10:30** - ? [[Why]]", "", "> [!note]- Footer"]
   }
 ]

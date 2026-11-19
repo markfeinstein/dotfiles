@@ -250,6 +250,12 @@ let
             home = homeConfigurations."${system}-work";
             inherit lib pkgs;
           };
+          obsidian-quickadd = pkgs.runCommand "obsidian-quickadd-check" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
+            QUESTION_SCRIPT=${../obsidian/quickadd/new-question.js} \
+            DOTFILES_OBSIDIAN_LOG_CASES=${./tests/question-log-cases.json} \
+              node --test ${./tests/new-question.test.cjs}
+            touch "$out"
+          '';
           pi-profile-options = import ./tests/pi-profile-options.nix {
             home = homeConfigurations."${system}-personal";
             inherit lib pkgs;
@@ -322,6 +328,11 @@ let
                 ];
               };
             in
+            # The default must stay identical to the desktop plugin's data.json.
+            assert lib.assertMsg (
+              home.config.dotfiles.neovim.obsidian.periodic.settings
+              == lib.importJSON ./tests/periodic-notes-desktop.json
+            ) "default periodic settings differ from the desktop data.json";
             pkgs.runCommand "obsidian-periodic-check" { } ''
               # Vault roots must be canonical, so resolve any symlinked TMPDIR.
               export HOME="$(cd "$TMPDIR" && pwd -P)/home"
