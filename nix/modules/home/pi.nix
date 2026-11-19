@@ -43,6 +43,7 @@ let
     "repository-workflow"
     "coordinator-workflow"
     "pull-request-workflow"
+    "human-writing"
   ];
   selectedSkills = lib.unique (commonSkills ++ cfg.skills);
   selectedSkillFiles = lib.concatMap (

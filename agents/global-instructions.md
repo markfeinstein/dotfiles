@@ -6,15 +6,35 @@
   registered worktrees instead of inferring them from the current path. Treat
   bare Git directories as infrastructure, not workspaces.
 
+## Reporting
+
+- Give numbered options or next steps one plain sentence each: what it does
+  and why. Name the ticket, PR, or file it concerns and mark the recommended one.
+- When reporting that checks or tests ran, include the command and the decisive
+  output line, or the log path.
+- Cite the source (link, comment, or file:line) for facts taken from tickets,
+  PRs, docs, or code.
+- In multi-ticket or multi-session work, start each update by naming the
+  current target.
+
+## Writing as the User
+
+- Before drafting text that will be posted under the user's name (Jira, PR
+  descriptions and replies, chat, email), load `human-writing`.
+
 ## Credentials and External Systems
 
 - Inspect non-secret metadata and effective configuration before credential use.
   Prefer configured host aliases, on-disk identity files, and existing local
   credential mechanisms.
-- Use existing `pass` entries before `op`. Do not infer local lookup order from a
-  repository's runtime secret source. Use 1Password only when the local entry is
-  absent, unusable, stale, or the task explicitly manages 1Password; network or
-  route failures do not justify that fallback.
+- Before long or unattended work that needs cloud or GitHub access, run `creds`
+  if it is installed, and ask the user to fix everything it reports in one
+  message.
+- Where `pass` is installed, use existing `pass` entries before `op`. Do not
+  infer local lookup order from a repository's runtime secret source. Use
+  1Password only when the local entry is absent, unusable, stale, or the task
+  explicitly manages 1Password; network or route failures do not justify that
+  fallback.
 - Never reveal credential values. Validate that required values are nonempty
   before consequential actions while keeping them out of chat, logs, tracked
   files, shell history, and transcripts.
@@ -76,6 +96,13 @@
   activation unless the current request explicitly asks the LLM to run that
   class of operation. Editing, committing, or merging configuration does not
   authorize activation.
+- When the user does ask for a rebuild, run `rebuild` in a visible Rex split so
+  they can authenticate, for example `rex split -s "$REX_SESSION" -b "$REX_BLOCK"
+  --split=below --label rebuild --keep-open --wait -c <repo> --shell=none --
+  rebuild ...`. Always pass `--repo` and `--commit-message` with a Conventional
+  Commit subject (remote mode cannot commit). Never use `sudo -n` or call
+  `darwin-rebuild` directly. Report the `Result:` line. When the repository's
+  `AGENTS.md` gives a rebuild command, use that exact command.
 - Give network-backed work a finite deadline. Retry transient failed reads
   only when useful within that deadline; do not retry indefinitely. A timed-out
   mutation has unknown outcome. Read back its exact target before considering
