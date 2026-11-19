@@ -11,9 +11,7 @@ let
   # Periodic Notes (desktop) uses Moment tokens; obsidian.nvim uses strftime.
   # Only these tokens are translated, so other daily formats fail the assertion.
   momentDailyFormat =
-    lib.replaceStrings
-      [ "%Y" "%m" "%B" "%d" "%A" ]
-      [ "YYYY" "MM" "MMMM" "DD" "dddd" ]
+    lib.replaceStrings [ "%Y" "%m" "%B" "%d" "%A" ] [ "YYYY" "MM" "MMMM" "DD" "dddd" ]
       cfg.obsidian.dailyNotes.dateFormat;
   periodicDaily = cfg.obsidian.periodic.settings.daily or { };
   periodicDailyMatches =
@@ -90,7 +88,7 @@ let
     pkgs.ripgrep
 
     # Core formatters and linters.
-    pkgs.alejandra
+    pkgs.nixfmt
     pkgs.nufmt
     pkgs.shellcheck
     pkgs.shfmt
