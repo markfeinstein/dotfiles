@@ -17,8 +17,9 @@ read-only inspection, remote ref changes, activation, deployment, or destructive
 recovery.
 
 A modification request authorizes an isolated local task branch, worktree, and
-commit series. It does not authorize integration, push, activation, deployment,
-or cleanup.
+commit series. Alone, it does not authorize integration or cleanup unless the
+repository's `AGENTS.md` grants standing approval for local integration and
+cleanup. Push, activation, and deployment always need an explicit request.
 
 ## Workflow
 
@@ -26,7 +27,10 @@ or cleanup.
    Git directory, branch, status, and registered worktrees. In a
    Worktrunk-managed repository, also use `wt -C CONTEXT list --format=json`.
    Record the base commit before mutation; never infer layout from `cwd` or treat
-   bare Git metadata as a workspace.
+   bare Git metadata as a workspace. Read the target repository's root
+   `AGENTS.md` when present: Pi loads it automatically only when the session's
+   working directory is inside that repository, and agents often edit a
+   repository from a session started elsewhere.
 2. **Choose an isolated worktree.** Reuse a clean non-bare worktree only when it
    is uniquely owned and already on the intended delivery branch. Otherwise use
    `git-project worktree --branch BRANCH --base BASE --cwd SOURCE`; omit
@@ -55,8 +59,9 @@ or cleanup.
 8. **Enforce committed completion.** Delivery requires a focused series, no
    temporary seeds or fixups, every task-owned change committed, and a clean task
    worktree. Otherwise report the work as blocked or partial.
-9. **Integrate or clean up only when explicitly authorized.** Before either
-   action, read [Local integration and cleanup](references/local-integration.md)
+9. **Integrate or clean up only when authorized.** Proceed when the user
+   explicitly authorizes it or the repository's `AGENTS.md` pre-approves it.
+   Before either action, read [Local integration and cleanup](references/local-integration.md)
    and follow its single-owner protocol and exact non-rewriting commands.
 
 A delegated writer stops at a clean, tested, committed source worktree and
@@ -69,6 +74,10 @@ It does not integrate or clean up unless assigned that exact scope.
   broad paths, force-delete branches, or pass Worktrunk force flags.
 - Local commit authorization does not authorize fetch, push, remote deletion,
   integration, activation, deployment, or cleanup.
+- Never put realistic-looking credentials (webhook URLs, tokens, keys,
+  connection strings) in tests, fixtures, or docs, even fake ones. Use
+  `example.com` hosts and obviously fake values such as `EXAMPLE_TOKEN`; secret
+  scanners block pushes on realistic formats.
 - Stop when repository ownership or the base is ambiguous, isolation fails,
   unrelated changes cannot be preserved, verification fails without a coherent
   authorized commit, integration conflicts, or cleanup ownership is uncertain.

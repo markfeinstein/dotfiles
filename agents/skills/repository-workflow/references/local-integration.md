@@ -1,7 +1,8 @@
 # Local Integration and Cleanup
 
 Read this reference only when the user explicitly authorizes local branch
-integration or task-worktree cleanup.
+integration or task-worktree cleanup, or the repository's `AGENTS.md`
+pre-approves them.
 
 ## Claim the Integration Lane
 
@@ -18,6 +19,11 @@ Before mutation:
 
 If ownership, paths, cleanliness, verification, or ancestry is uncertain, stop
 before integration.
+
+A repository's `AGENTS.md` may declare its established local integration
+strategy and standing approval for local integration and cleanup. Follow it
+instead of asking again. Push and activation stay separate and still need an
+explicit request.
 
 ## Integrate Without Rewriting
 

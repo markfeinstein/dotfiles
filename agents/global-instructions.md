@@ -49,6 +49,8 @@
 - Local modification authorization does not authorize integration, push,
   activation, deployment, runtime changes, or cleanup. Follow the skill's
   single-owner integration-lane protocol whenever those actions are requested.
+  A repository's `AGENTS.md` may pre-approve local integration and cleanup, but
+  never push or activation.
 
 ## Command Boundaries
 
