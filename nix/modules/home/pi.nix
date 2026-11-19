@@ -165,6 +165,11 @@ in
   };
 
   config = lib.mkIf cfg.enable {
+    # Every profile installs Rex, so pin its public docs endpoint once. Only
+    # non-destructive annotated reads pass; profiles can still override it.
+    dotfiles.pi.mcpPermissions.trustedServers.superlogical.exactUrl =
+      lib.mkDefault "https://www.superlogical.com/rex/community-mcp";
+
     assertions = [
       {
         assertion = lib.all (name: builtins.hasAttr name availableSkills) selectedSkills;

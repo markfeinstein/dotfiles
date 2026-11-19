@@ -25,7 +25,6 @@
         "obsidian"
       ];
       mcpPermissions.trustedServers = {
-        superlogical.exactUrl = "https://www.superlogical.com/rex/community-mcp";
         solidcraft_app = {
           exactCommand = "/Applications/SolidCraft.app/Contents/MacOS/solidcraft-cli";
           exactArgs = [
