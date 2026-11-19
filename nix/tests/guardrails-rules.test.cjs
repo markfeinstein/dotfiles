@@ -190,6 +190,53 @@ for (const [rule, commands] of Object.entries(destructiveGit)) {
   });
 }
 
+const WRAPPED_RM = "recursive force delete through a wrapper";
+const wrapped = {
+  "Git force-push or remote ref deletion": ['bash -c "git push --force"', "zsh -lc 'git push -f origin main'"],
+  "Git hard reset": ["sh -c 'git reset --hard'", 'eval "git reset --hard HEAD~1"'],
+  "Git branch force delete": ["bash -c 'git branch -D old'"],
+  "Worktrunk force flag": ["bash -c 'wt remove --force ../x'"],
+  [WRAPPED_RM]: [
+    "bash -c 'rm -rf build'",
+    'sh -c "rm -r -f build"',
+    "ls | xargs rm -rf",
+    "xargs -0 rm --recursive --force < list",
+    "find . -name node_modules -exec rm -rf {} +",
+    "find . -type d -execdir rm -fr {} ;",
+    "timeout 10 rm -rf build",
+    "env FOO=1 rm -rf build",
+    "nohup rm -rf build",
+  ],
+  "find -delete": ["find . -name '*.tmp' -delete", "find /tmp/x -type f -delete -print"],
+};
+
+for (const [rule, commands] of Object.entries(wrapped)) {
+  test(`gates wrapped: ${rule}`, () => {
+    for (const command of commands) {
+      assert.ok(matchingRules(command).includes(rule), command);
+    }
+  });
+}
+
+test("quoted text and plain wrappers are not gated", () => {
+  for (const command of [
+    "rg 'git reset --hard' docs",
+    "rg -n 'rm -rf' docs",
+    "bash -c 'git push'",
+    "bash -c 'echo rm -rf is gated'",
+    "ls | xargs rm -r",
+    "xargs rm -f < list",
+    "find . -name x -print",
+    "find . -name x -exec rm {} +",
+    "timeout 10 rm -r /tmp/x",
+    "timeout 30 nix build --no-link .#x",
+    "env | sort",
+  ]) {
+    // pi-guardrails skips its built-in "rm -rf" keyword for cleanly parsed commands.
+    assert.deepEqual(matchingRules(command).filter((rule) => rule !== "recursive force delete"), [], command);
+  }
+});
+
 test("everyday Git and Worktrunk commands are not gated", () => {
   for (const command of [
     "git push",

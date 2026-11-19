@@ -13,16 +13,24 @@ let
   # The rest of the current command segment, up to the next separator.
   rest = ''[^;&|\n]*'';
   # The end of an option or word.
-  end = ''(?=[\s;&|)]|$)'';
+  end = ''(?=[\s;&|)"'`]|$)'';
+  # Where a command can start: the start of input, after a separator or
+  # space, or right after the opening quote of a `sh -c` (any shell) or `eval`
+  # string. Other quoted text, such as a search pattern, does not count.
+  start = ''(?:^|[;&|(){}\s]|(?<=\b(?:(?:ba|z|da|k)?sh\s+-[A-Za-z]*c|eval)\s+)["'])'';
   # A git invocation, with global options, running the given subcommand.
-  gitCommand = sub: ''(?:^|[;&|(){}\s])git(?:\s+(?:-[Cc]\s+\S+|-[^\s;&|(){}]+))*\s+${sub}${end}'';
+  gitCommand = sub: ''${start}git(?:\s+(?:-[Cc]\s+\S+|-[^\s;&|(){}]+))*\s+${sub}${end}'';
   shortFlag = letters: "-[A-Za-z]*[${letters}][A-Za-z]*${end}";
   rule = pattern: description: {
     inherit pattern description;
     regex = true;
   };
   # A tool name at the start of a command segment.
-  tool = name: ''(?:^|[;&|(){}\s])${name}(?=\s)'';
+  tool = name: ''${start}${name}(?=\s)'';
+  # pi-guardrails matches `rm -rf` structurally only when rm is the command
+  # word, so these cover rm run through a wrapper or inside a shell string.
+  rmWrapper = ''(?:${start}(?:xargs|timeout|env|nice|nohup|time|command|exec|stdbuf)(?:\s+[^\s;&|]+)*?\s+|\s-exec(?:dir)?\s+|(?<=\b(?:(?:ba|z|da|k)?sh\s+-[A-Za-z]*c|eval)\s+)["'])rm(?=\s)'';
+  rmRecursiveForce = ''(?=${rest}\s(?:-[A-Za-z]*[rR][A-Za-z]*|--recursive)${end})(?=${rest}\s(?:-[A-Za-z]*f[A-Za-z]*|--force)${end})'';
   # A copy or sync whose destination (a later argument) is a bucket URL.
   copyTo = scheme: ''(?:cp|sync|rsync)(?:\s+-\S+)*\s+[^\s;&|]+(?:\s+[^\s;&|]+)*?\s+${scheme}'';
   infraRules = [
@@ -151,6 +159,8 @@ in
         (rule "${gitCommand ''stash\s+(?:drop|clear)''}" "Git stash drop or clear")
         (rule ''${gitCommand ''worktree\s+remove''}(?=${rest}\s(?:--force${end}|${shortFlag "f"}))'' "Git worktree force removal")
         (rule ''${tool "wt"}(?=${rest}\s(?:--(?:force|force-delete|clobber)${end}|${shortFlag "fD"}))'' "Worktrunk force flag")
+        (rule "${rmWrapper}${rmRecursiveForce}" "recursive force delete through a wrapper")
+        (rule ''${tool "find"}(?=${rest}\s-delete${end})'' "find -delete")
       ]
       ++ (if gateInfraChanges then infraRules else [ ]);
   };
