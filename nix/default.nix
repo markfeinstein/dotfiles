@@ -256,6 +256,17 @@ let
               node --test ${./tests/new-question.test.cjs}
             touch "$out"
           '';
+          rebuild-source =
+            let
+              inlineShellLibrary = import ./lib/inline-shell-library.nix { inherit lib; };
+              script = pkgs.writeText "rebuild" (
+                inlineShellLibrary ../bin/rebuild ../bin/lib/profile.sh
+              );
+            in
+            pkgs.runCommand "rebuild-source-check" { nativeBuildInputs = [ pkgs.git ]; } ''
+              ${pkgs.stdenv.shell} ${./tests/rebuild-source.sh} ${script}
+              touch "$out"
+            '';
           pi-profile-options = import ./tests/pi-profile-options.nix {
             home = homeConfigurations."${system}-personal";
             inherit lib pkgs;
