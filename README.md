@@ -280,6 +280,11 @@ tarball without install scripts):
 dotfiles.pi.usageDashboard.enable = true;
 ```
 
+Profiles with a Claude Code subscription can make `pi-claude-bridge` the default
+provider for fresh sessions and subagent roles with
+`dotfiles.pi.claudeBridge.enable = true`. See
+[Claude Bridge preset](docs/pi-claude-bridge.md).
+
 ## Install
 
 Run the standalone bootstrap directly from a reviewed revision:

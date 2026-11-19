@@ -66,9 +66,11 @@ let
     cfg.subagentPackageSpec
     "npm:pi-web-access"
   ];
-  optionalPackageSpecs = lib.optional cfg.usageDashboard.enable (
-    toString (pkgs.callPackage ../../packages/pi-usage-extension.nix { })
-  );
+  optionalPackageSpecs =
+    lib.optional cfg.claudeBridge.enable cfg.claudeBridge.packageSpec
+    ++ lib.optional cfg.usageDashboard.enable (
+      toString (pkgs.callPackage ../../packages/pi-usage-extension.nix { })
+    );
   packageSpecs = lib.unique (commonPackageSpecs ++ optionalPackageSpecs ++ cfg.packageSpecs);
   commonExtraPackages = [
     pkgs.claude-code
@@ -115,9 +117,39 @@ let
     cfg.hiddenModels.providers != [ ] || cfg.hiddenModels.ids != [ ]
   ) { enabledModels = [ hiddenModelsPattern ]; };
 
+  # Bridge model defaults for fresh sessions and native subagent roles. Only
+  # models change; inherited role tools, skills, placement and limits remain.
+  # Profile settings still win. Existing sessions keep their recorded provider.
+  claudeBridgeModel = family: "claude-bridge/claude-${family}-5-5";
+  claudeBridgeSettings = lib.optionalAttrs cfg.claudeBridge.enable {
+    defaultProvider = "claude-bridge";
+    defaultModel = "claude-opus-5-5";
+    defaultThinkingLevel = "high";
+    modelThinkingLevels = {
+      ${claudeBridgeModel "opus"} = "high";
+      ${claudeBridgeModel "sonnet"} = "medium";
+    };
+    subagents = {
+      defaultModel = claudeBridgeModel "sonnet";
+      agentOverrides = {
+        scout.model = claudeBridgeModel "haiku";
+        researcher.model = claudeBridgeModel "sonnet";
+        worker.model = claudeBridgeModel "sonnet";
+        reviewer.model = claudeBridgeModel "opus";
+        "evidence-auditor".model = claudeBridgeModel "opus";
+        oracle = {
+          model = claudeBridgeModel "opus";
+          # The interactive Opus effort, not the GPT oracle's xhigh.
+          thinking = "high";
+        };
+      };
+    };
+  };
+
   piSettings =
     lib.foldl' lib.recursiveUpdate baseSettings [
       modelScopeSettings
+      claudeBridgeSettings
       cfg.settings
     ]
     // {
@@ -217,6 +249,20 @@ in
       };
     };
 
+    claudeBridge = {
+      enable = lib.mkEnableOption ''
+        the pi-claude-bridge provider as the default for fresh sessions and
+        native subagent roles. The legacy claude-code provider stays installed
+        for existing histories but is hidden from model selection
+      '';
+
+      packageSpec = lib.mkOption {
+        type = lib.types.nonEmptyStr;
+        default = "npm:pi-claude-bridge@0.13.0";
+        description = "Pinned pi-claude-bridge package source";
+      };
+    };
+
     usageDashboard.enable = lib.mkEnableOption "the pinned @mturley/pi-usage-extension provider usage dashboard";
 
     packageUpdates = lib.mkOption {
@@ -250,6 +296,9 @@ in
     # non-destructive annotated reads pass; profiles can still override it.
     dotfiles.pi.mcpPermissions.trustedServers.superlogical.exactUrl =
       lib.mkDefault "https://www.superlogical.com/rex/community-mcp";
+
+    # Bridge serves the same Claude models, so hide the duplicate legacy ones.
+    dotfiles.pi.hiddenModels.providers = lib.mkIf cfg.claudeBridge.enable [ "claude-code" ];
 
     assertions = [
       {
