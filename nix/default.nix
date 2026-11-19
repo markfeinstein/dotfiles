@@ -322,6 +322,11 @@ let
                 ];
               };
             in
+            # The default must stay identical to the desktop plugin's data.json.
+            assert lib.assertMsg (
+              home.config.dotfiles.neovim.obsidian.periodic.settings
+              == lib.importJSON ./tests/periodic-notes-desktop.json
+            ) "default periodic settings differ from the desktop data.json";
             pkgs.runCommand "obsidian-periodic-check" { } ''
               # Vault roots must be canonical, so resolve any symlinked TMPDIR.
               export HOME="$(cd "$TMPDIR" && pwd -P)/home"
