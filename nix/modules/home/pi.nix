@@ -357,6 +357,7 @@ in
         };
         ".pi/agent/prompts/review-only.md".source = agentsRoot + "/prompts/review-only.md";
         ".pi/agent/prompts/ship.md".source = agentsRoot + "/prompts/ship.md";
+        ".pi/agent/prompts/handoff.md".source = agentsRoot + "/prompts/handoff.md";
         ".config/rpiv-todo/config.json".text = builtins.toJSON {
           maxWidgetLines = 8;
           guidance = {
