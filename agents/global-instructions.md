@@ -92,6 +92,13 @@
   activation unless the current request explicitly asks the LLM to run that
   class of operation. Editing, committing, or merging configuration does not
   authorize activation.
+- When the user does ask for a rebuild, run `rebuild` in a visible Rex split so
+  they can authenticate, for example `rex split -s "$REX_SESSION" -b "$REX_BLOCK"
+  --split=below --label rebuild --keep-open --wait -c <repo> --shell=none --
+  rebuild ...`. Always pass `--repo` and `--commit-message` with a Conventional
+  Commit subject (remote mode cannot commit). Never use `sudo -n` or call
+  `darwin-rebuild` directly. Report the `Result:` line. When the repository's
+  `AGENTS.md` gives a rebuild command, use that exact command.
 - Give network-backed work a finite deadline. Retry transient failed reads
   only when useful within that deadline; do not retry indefinitely. A timed-out
   mutation has unknown outcome. Read back its exact target before considering
