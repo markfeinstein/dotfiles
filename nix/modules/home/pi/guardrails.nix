@@ -6,6 +6,17 @@ let
   # "." or ".." segments, no trailing slash (it would follow a symlink), and
   # no quotes, globs, variables or other shell syntax.
   tmpPath = ''(?:/private)?/tmp(?:/(?!\.\.?(?:/|[ \t]|$))[A-Za-z0-9._@+-]+)+'';
+  # The rest of the current command segment, up to the next separator.
+  rest = ''[^;&|\n]*'';
+  # The end of an option or word.
+  end = ''(?=[\s;&|)]|$)'';
+  # A git invocation, with global options, running the given subcommand.
+  gitCommand = sub: ''(?:^|[;&|(){}\s])git(?:\s+(?:-[Cc]\s+\S+|-[^\s;&|(){}]+))*\s+${sub}${end}'';
+  shortFlag = letters: ''-[A-Za-z]*[${letters}][A-Za-z]*${end}'';
+  rule = pattern: description: {
+    inherit pattern description;
+    regex = true;
+  };
 in
 {
   applyBuiltinDefaults = true;
@@ -112,6 +123,26 @@ in
           regex = true;
           description = "GitHub GraphQL API call with possible mutation";
         }
+      ]
+      # Backstops for the global agent rules: never force-push, delete a remote
+      # ref, hard-reset, destructively clean, force-delete branches, drop
+      # stashes, or pass force flags to Worktrunk.
+      ++ [
+        (rule ''${gitCommand "push"}(?=${rest}\s(?:--(?:force|force-with-lease|force-if-includes|delete|mirror|prune)(?:=\S*)?${end}|${shortFlag "fd"}|[+:][^\s;&|]))''
+          "Git force-push or remote ref deletion"
+        )
+        (rule ''${gitCommand "reset"}(?=${rest}\s--hard${end})'' "Git hard reset")
+        (rule ''${gitCommand "clean"}(?=${rest}\s(?:--force${end}|${shortFlag "f"}))'' "Git clean that deletes files")
+        (rule ''${gitCommand "branch"}(?:(?=${rest}\s${shortFlag "D"})|(?=${rest}\s(?:--delete${end}|${shortFlag "d"}))(?=${rest}\s(?:--force${end}|${shortFlag "f"})))''
+          "Git branch force delete"
+        )
+        (rule ''${gitCommand ''stash\s+(?:drop|clear)''}'' "Git stash drop or clear")
+        (rule ''${gitCommand ''worktree\s+remove''}(?=${rest}\s(?:--force${end}|${shortFlag "f"}))''
+          "Git worktree force removal"
+        )
+        (rule ''(?:^|[;&|(){}\s])wt(?=\s)(?=${rest}\s(?:--(?:force|force-delete|clobber)${end}|${shortFlag "fD"}))''
+          "Worktrunk force flag"
+        )
       ];
   };
 }

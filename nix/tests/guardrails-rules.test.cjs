@@ -149,6 +149,77 @@ test("other recursive deletes still need confirmation", () => {
   }
 });
 
+const destructiveGit = {
+  "Git force-push or remote ref deletion": [
+    "git push --force origin main",
+    "git push -f",
+    "git push -uf origin x",
+    "git push --force-with-lease",
+    "git push --force-with-lease=main:abc origin main",
+    "git -C ~/dev/repo push origin +main",
+    "git push origin :old-branch",
+    "git push --delete origin old-branch",
+    "git push -d origin old-branch",
+    "git push --mirror",
+    "cd repo && git push --force",
+  ],
+  "Git hard reset": ["git reset --hard", "git reset --hard origin/main", "git -C repo reset --hard HEAD~1"],
+  "Git clean that deletes files": ["git clean -fd", "git clean -xdf", "git clean --force", "git clean -f;"],
+  "Git branch force delete": [
+    "git branch -D feature",
+    "git branch -d -f feature",
+    "git branch -df feature",
+    "git branch --delete --force feature",
+  ],
+  "Git stash drop or clear": ["git stash drop", "git stash drop stash@{1}", "git stash clear"],
+  "Git worktree force removal": ["git worktree remove --force ../wt", "git worktree remove -f ../wt"],
+  "Worktrunk force flag": [
+    "wt remove --force ../x",
+    "wt remove -D feat/x",
+    "wt -C ~/dev/repo remove --force-delete feat/x",
+    "wt switch --clobber feat/x",
+    "wt remove -f",
+  ],
+};
+
+for (const [rule, commands] of Object.entries(destructiveGit)) {
+  test(`gates: ${rule}`, () => {
+    for (const command of commands) {
+      assert.ok(matchingRules(command).includes(rule), command);
+    }
+  });
+}
+
+test("everyday Git and Worktrunk commands are not gated", () => {
+  for (const command of [
+    "git push",
+    "git push -u origin feat/x",
+    "git push origin HEAD:main",
+    "git push --dry-run origin main",
+    "git reset --soft HEAD~1",
+    "git reset HEAD file",
+    "git clean -n",
+    "git branch -d merged",
+    "git branch --list 'fix/*' -v",
+    "git branch --format='%(refname)' --sort=-committerdate",
+    "git stash list",
+    "git stash pop",
+    "git worktree remove ../wt",
+    "git restore --source=HEAD --worktree -- flake.lock",
+    "git checkout -- file",
+    "git commit -m 'feat: x' && git push",
+    "git log --format='%an <%ae>' -1",
+    "git-readonly log --oneline -3",
+    "rg 'git reset --hard' docs",
+    "wt list --format=json",
+    "wt remove --foreground --format=json ../x",
+    "wt -C ~/dev/repo step push --format=json main",
+    "wt merge --no-commit --no-rebase --no-remove --format=json main",
+  ]) {
+    assert.deepEqual(matchingRules(command), [], command);
+  }
+});
+
 test("unrelated rules are unchanged", () => {
   assert.ok(matchingRules("sudo ls").includes("superuser command"));
   assert.ok(matchingRules("rm -rf build").includes("recursive force delete"));
