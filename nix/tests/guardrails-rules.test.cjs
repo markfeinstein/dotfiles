@@ -1,0 +1,111 @@
+// Runs the generated pi-guardrails permission-gate rules as pi-guardrails does:
+// new RegExp(pattern) with no flags, tested against the raw command string.
+const assert = require("node:assert/strict");
+const { readFileSync } = require("node:fs");
+const { test } = require("node:test");
+
+const config = JSON.parse(readFileSync(process.env.GUARDRAILS_RULES, "utf8"));
+const rules = config.permissionGate.patterns;
+
+function matchingRules(command) {
+  return rules
+    .filter((rule) => (rule.regex ? new RegExp(rule.pattern).test(command) : command.includes(rule.pattern)))
+    .map((rule) => rule.description);
+}
+
+const GRAPHQL = "GitHub GraphQL API call with possible mutation";
+const API_MUTATION = "GitHub issue or pull-request API mutation";
+
+const inlineQuery =
+  "gh api graphql -f query='{repository(owner:\"o\",name:\"r\"){pullRequest(number:1){reviewThreads(first:20){nodes{isResolved}}}}}'";
+
+const noLongerMatch = {
+  "inline read-only GraphQL query": [inlineQuery, GRAPHQL],
+  "inline read-only GraphQL query with a jq pipe": [`${inlineQuery} --jq '.data|.repository'`, GRAPHQL],
+  "inline read-only GraphQL query with options before graphql": [
+    "gh api -H 'X-Test: 1' graphql -f query='{viewer{login}}'",
+    GRAPHQL,
+  ],
+  "inline query with a GraphQL variable and a shell-expanded field": [
+    "gh api graphql -f query='query($o: String!){viewer{login}}' -f o=\"$o\"",
+    GRAPHQL,
+  ],
+  "inline query with an expansion inside the text": [
+    'gh api graphql -f query="{repository(owner:\\"$o\\",name:\\"r\\"){id}}"',
+    GRAPHQL,
+  ],
+  "explicit GET search": ["gh api --method GET search/issues -f 'q=repo:o/r is:pr'", API_MUTATION],
+  "--method=GET search": ["gh api --method=GET search/issues -f 'q=repo:o/r is:pr'", API_MUTATION],
+  "-X GET search": ["gh api -X GET repos/o/r/issues -f state=open", API_MUTATION],
+  "GET after the endpoint": ["gh api repos/o/r/pulls -f state=open --method GET", API_MUTATION],
+};
+
+const stillMatch = {
+  "inline mutation loop": [
+    'for t in a b; do gh api graphql -f query="mutation{resolveReviewThread(input:{threadId:\\"$t\\"}){thread{id}}}"; done',
+    GRAPHQL,
+  ],
+  "inline named mutation": ["gh api graphql -f query='mutation Resolve($id: ID!) { x }'", GRAPHQL],
+  "mutation after a jq pipe": ["gh api graphql --jq '.a|.b' -f query='mutation{x}'", GRAPHQL],
+  "mutation text built in an earlier statement": ["q='mutation{x}'; gh api graphql -f query=\"$q\"", GRAPHQL],
+  "query from a file with -F": ["gh api graphql -F query=@mutation.graphql", GRAPHQL],
+  "query from a file with --field": ["gh api graphql --field query=@mutation.graphql", GRAPHQL],
+  "query from a file with --field=": ["gh api graphql --field=query=@mutation.graphql", GRAPHQL],
+  "query from stdin": ["gh api graphql -F query=@- < mutation.graphql", GRAPHQL],
+  "query file after a jq pipe": ["gh api graphql --jq '.a|.b' -F query=@mutation.graphql", GRAPHQL],
+  "query from a shell variable in double quotes": ['gh api graphql -f query="$q"', GRAPHQL],
+  "query from a bare shell variable": ["gh api graphql -f query=$q", GRAPHQL],
+  "query from a braced shell variable": ['gh api graphql -f query="${q}"', GRAPHQL],
+  "query from a command substitution": ['gh api graphql -F query="$(cat x.graphql)"', GRAPHQL],
+  "query from a backtick substitution": ["gh api graphql -f query=`cat x.graphql`", GRAPHQL],
+  "query from --raw-field and a variable": ["gh api graphql --raw-field query=$Q", GRAPHQL],
+  "query from --raw-field= and a variable": ["gh api graphql --raw-field=query=$Q", GRAPHQL],
+  "query from --field and a variable": ['gh api graphql --field query="$Q"', GRAPHQL],
+  "query from an attached -f and a variable": ["gh api graphql -fquery=$q", GRAPHQL],
+  "query variable after a jq pipe": ["gh api graphql --jq '.a|.b' -f query=\"$q\"", GRAPHQL],
+  "request body from a file": ["gh api graphql --input body.json", GRAPHQL],
+  "request body from stdin": ["cat body.json | gh api graphql --input -", GRAPHQL],
+  "explicit POST": ["gh api -X POST repos/o/r/issues/1/comments -f body=x", API_MUTATION],
+  "explicit PATCH after the endpoint": ["gh api repos/o/r/pulls/1 -X PATCH -f title=x", API_MUTATION],
+  "explicit --method DELETE": ["gh api --method DELETE repos/o/r/issues/comments/1", API_MUTATION],
+  "implicit POST from -f": ["gh api repos/o/r/issues/1/comments -f body=x", API_MUTATION],
+  "implicit POST from --field": ["gh api repos/o/r/issues/1/comments --field body=x", API_MUTATION],
+  "implicit POST from --input": ["gh api repos/o/r/pulls/1/comments --input body.json", API_MUTATION],
+  "GET followed by a mutating method": ["gh api -X GET -X POST repos/o/r/issues/1/comments -f body=x", API_MUTATION],
+  "GET in an earlier segment only": [
+    "gh api --method GET repos/o/r/issues; gh api repos/o/r/issues/1/comments -f body=x",
+    API_MUTATION,
+  ],
+};
+
+for (const [name, [command, rule]] of Object.entries(noLongerMatch)) {
+  test(`no longer matches: ${name}`, () => {
+    assert.ok(!matchingRules(command).includes(rule), `${rule} still matches: ${command}`);
+  });
+}
+
+for (const [name, [command, rule]] of Object.entries(stillMatch)) {
+  test(`still matches: ${name}`, () => {
+    assert.ok(matchingRules(command).includes(rule), `${rule} no longer matches: ${command}`);
+  });
+}
+
+test("plain read-only gh api calls match no rule", () => {
+  for (const command of [
+    "gh api repos/o/r/pulls/1 --jq .updated_at",
+    "gh api --paginate repos/o/r/issues/1/comments --jq '.[]|.id'",
+    "gh api user --jq .login",
+    "gh pr view 1 -R o/r --json state",
+  ]) {
+    assert.deepEqual(matchingRules(command), [], command);
+  }
+});
+
+test("unrelated rules are unchanged", () => {
+  assert.ok(matchingRules("sudo ls").includes("superuser command"));
+  assert.ok(matchingRules("rm -rf build").includes("recursive force delete"));
+  assert.ok(matchingRules("gh issue close 1").includes("GitHub issue command outside read-only allow-list"));
+  assert.ok(matchingRules("gh pr merge 1").includes("GitHub pull-request command outside read-only allow-list"));
+  assert.deepEqual(matchingRules("gh issue list"), []);
+  assert.deepEqual(matchingRules("gh pr view 1"), []);
+});
