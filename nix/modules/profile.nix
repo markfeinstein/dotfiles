@@ -27,14 +27,11 @@ let
   profileAssertions =
     lib.optionals (vaults != null) [
       {
-        assertion = lib.all (
-          vault: lib.hasPrefix "/" vault.path || lib.hasPrefix "~/" vault.path
-        ) vaults;
+        assertion = lib.all (vault: lib.hasPrefix "/" vault.path || lib.hasPrefix "~/" vault.path) vaults;
         message = "profile.obsidian.vaults paths must be absolute or start with ~/";
       }
       {
-        assertion =
-          lib.length (lib.unique (map (vault: vault.name) vaults)) == lib.length vaults;
+        assertion = lib.length (lib.unique (map (vault: vault.name) vaults)) == lib.length vaults;
         message = "profile.obsidian.vaults names must be unique";
       }
     ]
@@ -168,22 +165,21 @@ in
         useGlobalPkgs = true;
         useUserPackages = true;
 
-        users.${username}.profile =
-          {
-            inherit (config.profile) name;
-            ssh.onePasswordAgent = {
-              enable = lib.mkDefault config.profile.ssh.onePasswordAgent.enable;
-              keys = lib.mkDefault config.profile.ssh.onePasswordAgent.keys;
-            };
-            user = lib.mkDefault config.profile.user;
-          }
-          // lib.optionalAttrs (vaults != null) {
-            # Profile defaults use mkDefault (priority 1000), while ordinary
-            # Home Manager definitions use priority 100. Inherit explicit Darwin
-            # values between them so they replace fallbacks without preventing a
-            # deliberate Home Manager override.
-            obsidian.vaults = lib.mkOverride 900 vaults;
+        users.${username}.profile = {
+          inherit (config.profile) name;
+          ssh.onePasswordAgent = {
+            enable = lib.mkDefault config.profile.ssh.onePasswordAgent.enable;
+            keys = lib.mkDefault config.profile.ssh.onePasswordAgent.keys;
           };
+          user = lib.mkDefault config.profile.user;
+        }
+        // lib.optionalAttrs (vaults != null) {
+          # Profile defaults use mkDefault (priority 1000), while ordinary
+          # Home Manager definitions use priority 100. Inherit explicit Darwin
+          # values between them so they replace fallbacks without preventing a
+          # deliberate Home Manager override.
+          obsidian.vaults = lib.mkOverride 900 vaults;
+        };
       };
     }
   );

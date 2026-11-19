@@ -1,17 +1,25 @@
-{ home, lib, pkgs }:
+{
+  home,
+  lib,
+  pkgs,
+}:
 let
-  runtime = config: builtins.fromJSON config.home.file.".pi/agent/extensions/subagent/config.json".text;
+  runtime =
+    config: builtins.fromJSON config.home.file.".pi/agent/extensions/subagent/config.json".text;
   settings = config: config.programs.pi-coding-agent.settings;
   base = home.config;
-  custom = (home.extendModules {
-    modules = [ {
-      dotfiles.pi = {
-        subagentPackageSpec = "/tmp/pi-subagents-patched";
-        subagentConfig.globalConcurrencyLimit = 1;
-        settings.subagents.agentOverrides.worker.thinking = "medium";
-      };
-    } ];
-  }).config;
+  custom =
+    (home.extendModules {
+      modules = [
+        {
+          dotfiles.pi = {
+            subagentPackageSpec = "/tmp/pi-subagents-patched";
+            subagentConfig.globalConcurrencyLimit = 1;
+            settings.subagents.agentOverrides.worker.thinking = "medium";
+          };
+        }
+      ];
+    }).config;
   expectedModels = {
     scout = "openai-codex/gpt-6-luna";
     researcher = "openai-codex/gpt-6-luna";
@@ -20,7 +28,8 @@ let
     reviewer = "openai-codex/gpt-6.1-sol";
     oracle = "github-copilot/gpt-5.6-sol";
   };
-  roleChecks = lib.all (name:
+  roleChecks = lib.all (
+    name:
     (settings base).subagents.agentOverrides.${name}.machine == "local"
     && (settings base).subagents.agentOverrides.${name}.model == expectedModels.${name}
   ) (builtins.attrNames expectedModels);
@@ -44,7 +53,10 @@ assert !(settings base).sessions.subagents.enable;
 assert !(settings base).sessions.handoff.enable;
 assert builtins.hasAttr ".agents/skills/coordinator-workflow/SKILL.md" base.home.file;
 assert builtins.hasAttr ".agents/skills/pull-request-workflow/SKILL.md" base.home.file;
-assert !(lib.any (lib.hasPrefix ".agents/skills/coordinator-workflow/evals/") (builtins.attrNames base.home.file));
+assert
+  !(lib.any (lib.hasPrefix ".agents/skills/coordinator-workflow/evals/") (
+    builtins.attrNames base.home.file
+  ));
 pkgs.runCommand "pi-coordinator-check" { } ''
   ${pkgs.python3}/bin/python ${./pi-coordinator-structure.py} ${../..}
   touch "$out"

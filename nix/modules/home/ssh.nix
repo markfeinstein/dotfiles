@@ -9,9 +9,7 @@ let
   profileCfg = config.profile.ssh.onePasswordAgent;
   darwinSocket = ''"~/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock"'';
   agentConfig = (pkgs.formats.toml { }).generate "1password-ssh-agent.toml" {
-    "ssh-keys" = map (
-      selector: lib.filterAttrs (_: value: value != null) selector
-    ) profileCfg.keys;
+    "ssh-keys" = map (selector: lib.filterAttrs (_: value: value != null) selector) profileCfg.keys;
   };
 in
 {

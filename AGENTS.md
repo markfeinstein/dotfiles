@@ -25,7 +25,7 @@ add to the global instructions and the `repository-workflow` skill.
   the command lists for areas you change.
 - Run one check: `nix build --no-link .#checks.aarch64-darwin.<name>`. Run
   `nix flake check --no-build` for a broad evaluation of every output and
-  `nix fmt -- --check .` for Nix formatting (both run in CI).
+  `nix fmt -- --ci` for Nix formatting (both run in CI; `nix fmt` fixes it).
 - Rex Lua and Python tests live in `tests/rex/` and have no Nix check. Run them
   from the repository root when you change Rex scripts or pickers. `lua` is not
   on `PATH`, so use

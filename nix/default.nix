@@ -239,43 +239,63 @@ let
               system
               ;
           };
-          rex-worker-labels = pkgs.runCommand "rex-worker-labels-check" {
-            nativeBuildInputs = [ pkgs.coreutils pkgs.gawk pkgs.jq pkgs.python3 ];
-          } ''
-            export PATH="${pkgs.bashNonInteractive}/bin:$PATH"
-            python ${./tests/rex-label-window.py} ${../.}
-            touch "$out"
-          '';
+          rex-worker-labels =
+            pkgs.runCommand "rex-worker-labels-check"
+              {
+                nativeBuildInputs = [
+                  pkgs.coreutils
+                  pkgs.gawk
+                  pkgs.jq
+                  pkgs.python3
+                ];
+              }
+              ''
+                export PATH="${pkgs.bashNonInteractive}/bin:$PATH"
+                python ${./tests/rex-label-window.py} ${../.}
+                touch "$out"
+              '';
           pi-coordinator = import ./tests/pi-coordinator.nix {
             home = homeConfigurations."${system}-work";
             inherit lib pkgs;
           };
-          obsidian-quickadd = pkgs.runCommand "obsidian-quickadd-check" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
-            QUESTION_SCRIPT=${../obsidian/quickadd/new-question.js} \
-            DOTFILES_OBSIDIAN_LOG_CASES=${./tests/question-log-cases.json} \
-              node --test ${./tests/new-question.test.cjs}
-            touch "$out"
-          '';
-          git-readonly = pkgs.runCommand "git-readonly-check" { nativeBuildInputs = [ pkgs.git pkgs.python3 ]; } ''
-            python ${./tests/git-readonly.py} ${../bin/git-readonly.py}
-            touch "$out"
-          '';
-          guardrails-rules = pkgs.runCommand "guardrails-rules-check" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
-            GUARDRAILS_RULES=${pkgs.writeText "guardrails.json" (builtins.toJSON (import ./modules/home/pi/guardrails.nix { }))} \
-            GUARDRAILS_RULES_INFRA=${
-              pkgs.writeText "guardrails-infra.json" (
-                builtins.toJSON (import ./modules/home/pi/guardrails.nix { gateInfraChanges = true; })
-              )
-            } \
-              node --test ${./tests/guardrails-rules.test.cjs}
-            touch "$out"
-          '';
+          obsidian-quickadd =
+            pkgs.runCommand "obsidian-quickadd-check" { nativeBuildInputs = [ pkgs.nodejs ]; }
+              ''
+                QUESTION_SCRIPT=${../obsidian/quickadd/new-question.js} \
+                DOTFILES_OBSIDIAN_LOG_CASES=${./tests/question-log-cases.json} \
+                  node --test ${./tests/new-question.test.cjs}
+                touch "$out"
+              '';
+          git-readonly =
+            pkgs.runCommand "git-readonly-check"
+              {
+                nativeBuildInputs = [
+                  pkgs.git
+                  pkgs.python3
+                ];
+              }
+              ''
+                python ${./tests/git-readonly.py} ${../bin/git-readonly.py}
+                touch "$out"
+              '';
+          guardrails-rules =
+            pkgs.runCommand "guardrails-rules-check" { nativeBuildInputs = [ pkgs.nodejs ]; }
+              ''
+                GUARDRAILS_RULES=${
+                  pkgs.writeText "guardrails.json" (builtins.toJSON (import ./modules/home/pi/guardrails.nix { }))
+                } \
+                GUARDRAILS_RULES_INFRA=${
+                  pkgs.writeText "guardrails-infra.json" (
+                    builtins.toJSON (import ./modules/home/pi/guardrails.nix { gateInfraChanges = true; })
+                  )
+                } \
+                  node --test ${./tests/guardrails-rules.test.cjs}
+                touch "$out"
+              '';
           rebuild-source =
             let
               inlineShellLibrary = import ./lib/inline-shell-library.nix { inherit lib; };
-              script = pkgs.writeText "rebuild" (
-                inlineShellLibrary ../bin/rebuild ../bin/lib/profile.sh
-              );
+              script = pkgs.writeText "rebuild" (inlineShellLibrary ../bin/rebuild ../bin/lib/profile.sh);
             in
             pkgs.runCommand "rebuild-source-check" { nativeBuildInputs = [ pkgs.git ]; } ''
               ${pkgs.stdenv.shell} ${./tests/rebuild-source.sh} ${script}
@@ -324,7 +344,9 @@ let
             export XDG_CACHE_HOME="$HOME/.cache"
             mkdir -p "$XDG_CONFIG_HOME" "$XDG_DATA_HOME/nvim/site/pack"
             ln -s ${obsidianEnabledHome.config.dotfiles.neovim.finalConfigSource} "$XDG_CONFIG_HOME/nvim"
-            ln -s ${obsidianEnabledHome.config.xdg.dataFile."nvim/site/pack/hm".source} "$XDG_DATA_HOME/nvim/site/pack/hm"
+            ln -s ${
+              obsidianEnabledHome.config.xdg.dataFile."nvim/site/pack/hm".source
+            } "$XDG_DATA_HOME/nvim/site/pack/hm"
             DOTFILES_OBSIDIAN_LOG_CASES=${./tests/question-log-cases.json} \
               ${lib.getExe obsidianEnabledHome.config.programs.neovim.finalPackage} \
               --headless -i NONE -n -c 'lua dofile("${./tests/obsidian-capture-test.lua}")'
@@ -507,5 +529,5 @@ in
     homeConfigurations
     ;
 
-  formatter = lib.genAttrs systems (system: nixpkgs.legacyPackages.${system}.alejandra);
+  formatter = lib.genAttrs systems (system: nixpkgs.legacyPackages.${system}.nixfmt-tree);
 }
