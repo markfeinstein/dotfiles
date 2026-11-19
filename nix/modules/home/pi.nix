@@ -160,11 +160,21 @@ in
     mcpPermissions.trustedServers = lib.mkOption {
       inherit (jsonFormat) type;
       default = { };
-      description = "Exact non-secret MCP server identity policies";
+      description = ''
+        Exact non-secret MCP server identity policies. Each server pins
+        `exactUrl` (HTTPS) or `exactCommand`/`exactArgs` (stdio). Optional
+        `readOnlyTools` lists exact tool names to treat as reads when the server
+        omits `readOnlyHint`; explicit non-read or destructive hints still prompt.
+      '';
     };
   };
 
   config = lib.mkIf cfg.enable {
+    # Every profile installs Rex, so pin its public docs endpoint once. Only
+    # non-destructive annotated reads pass; profiles can still override it.
+    dotfiles.pi.mcpPermissions.trustedServers.superlogical.exactUrl =
+      lib.mkDefault "https://www.superlogical.com/rex/community-mcp";
+
     assertions = [
       {
         assertion = lib.all (name: builtins.hasAttr name availableSkills) selectedSkills;
