@@ -66,7 +66,10 @@ let
     cfg.subagentPackageSpec
     "npm:pi-web-access"
   ];
-  packageSpecs = lib.unique (commonPackageSpecs ++ cfg.packageSpecs);
+  optionalPackageSpecs = lib.optional cfg.usageDashboard.enable (
+    toString (pkgs.callPackage ../../packages/pi-usage-extension.nix { })
+  );
+  packageSpecs = lib.unique (commonPackageSpecs ++ optionalPackageSpecs ++ cfg.packageSpecs);
   commonExtraPackages = [
     pkgs.claude-code
     pkgs.nodejs
@@ -164,6 +167,8 @@ in
     };
 
     solidcraft.enable = lib.mkEnableOption "the SolidCraft Pi ACP bridge";
+
+    usageDashboard.enable = lib.mkEnableOption "the pinned @mturley/pi-usage-extension provider usage dashboard";
 
     packageUpdates = lib.mkOption {
       type = lib.types.enum [

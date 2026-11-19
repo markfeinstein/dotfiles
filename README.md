@@ -260,6 +260,14 @@ The list applies only while the endpoint matches its pin. It never overrides an
 explicit `readOnlyHint: false` or `destructiveHint: true`, and it does not accept
 wildcards; list future read tools individually after checking their contract.
 
+Optional Pi extensions are off by default. A profile can enable the pinned
+provider usage dashboard (`@mturley/pi-usage-extension`, unpacked from its npm
+tarball without install scripts):
+
+```nix
+dotfiles.pi.usageDashboard.enable = true;
+```
+
 ## Install
 
 Run the standalone bootstrap directly from a reviewed revision:
