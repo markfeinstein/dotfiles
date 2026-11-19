@@ -260,6 +260,18 @@ The list applies only while the endpoint matches its pin. It never overrides an
 explicit `readOnlyHint: false` or `destructiveHint: true`, and it does not accept
 wildcards; list future read tools individually after checking their contract.
 
+Pi hides superseded model families (Claude 4, GPT-4, the `o` series, and GPT-5
+through 5.4) from model selection and cycling. The list is rendered as one
+blocking `enabledModels` glob, so newly released models appear without an edit.
+Profiles can replace the id globs (`hiddenModels.ids`) or hide a whole provider:
+
+```nix
+dotfiles.pi.hiddenModels.providers = [ "claude-code" ];
+```
+
+Set `hiddenModels.ids` and `hiddenModels.providers` to `[ ]` to show every model;
+an explicit `dotfiles.pi.settings.enabledModels` replaces the generated glob.
+
 Optional Pi extensions are off by default. A profile can enable the pinned
 provider usage dashboard (`@mturley/pi-usage-extension`, unpacked from its npm
 tarball without install scripts):

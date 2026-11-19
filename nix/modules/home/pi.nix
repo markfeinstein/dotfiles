@@ -98,9 +98,31 @@ let
   );
   baseSettings = import ./pi/settings.nix { inherit lib pkgs; };
 
-  piSettings = lib.recursiveUpdate (lib.recursiveUpdate baseSettings cfg.settings) {
-    packages = packageSpecs;
-  };
+  # One blocklist written as an enabledModels allowlist glob, so newly released
+  # models appear without an edit. Pi matches it with minimatch against
+  # provider/id (and the bare id, which a two-part pattern never matches). A
+  # leading "!" would negate the whole pattern, so the provider part uses
+  # @(!(...)) rather than !(...).
+  hiddenModelsPattern =
+    let
+      inherit (cfg.hiddenModels) providers ids;
+      alternatives = patterns: "(" + lib.concatStringsSep "|" patterns + ")";
+      provider = if providers == [ ] then "*" else "@(!${alternatives providers})";
+      id = if ids == [ ] then "*" else "!${alternatives ids}";
+    in
+    "${provider}/${id}";
+  modelScopeSettings = lib.optionalAttrs (
+    cfg.hiddenModels.providers != [ ] || cfg.hiddenModels.ids != [ ]
+  ) { enabledModels = [ hiddenModelsPattern ]; };
+
+  piSettings =
+    lib.foldl' lib.recursiveUpdate baseSettings [
+      modelScopeSettings
+      cfg.settings
+    ]
+    // {
+      packages = packageSpecs;
+    };
 
   offlinePackageUpdates = cfg.packageUpdates == "offline";
   dryRunPackageUpdateMessage =
@@ -167,6 +189,33 @@ in
     };
 
     solidcraft.enable = lib.mkEnableOption "the SolidCraft Pi ACP bridge";
+
+    hiddenModels = {
+      providers = lib.mkOption {
+        type = lib.types.listOf (lib.types.strMatching "[A-Za-z0-9._-]+");
+        default = [ ];
+        description = "Providers hidden from Pi model selection and cycling, such as one that duplicates another provider's models";
+      };
+
+      ids = lib.mkOption {
+        type = lib.types.listOf (lib.types.strMatching "[^|()/]+");
+        default = [
+          "claude-*-4"
+          "claude-*-4-*"
+          "gpt-4*"
+          "o[0-9]*"
+          "gpt-5"
+          "gpt-5-*"
+          "gpt-5.[0-4]*"
+        ];
+        description = ''
+          Minimatch globs for superseded model ids hidden from Pi model selection
+          and cycling. Rendered with `providers` into one `enabledModels`
+          pattern; an explicit `settings.enabledModels` replaces it. Set both
+          lists to `[ ]` to show every available model.
+        '';
+      };
+    };
 
     usageDashboard.enable = lib.mkEnableOption "the pinned @mturley/pi-usage-extension provider usage dashboard";
 
