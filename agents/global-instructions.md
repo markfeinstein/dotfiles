@@ -30,10 +30,11 @@
 - Before long or unattended work that needs cloud or GitHub access, run `creds`
   if it is installed, and ask the user to fix everything it reports in one
   message.
-- Where `pass` is installed, use existing `pass` entries before `op`. Do not infer local lookup order from a
-  repository's runtime secret source. Use 1Password only when the local entry is
-  absent, unusable, stale, or the task explicitly manages 1Password; network or
-  route failures do not justify that fallback.
+- Where `pass` is installed, use existing `pass` entries before `op`. Do not
+  infer local lookup order from a repository's runtime secret source. Use
+  1Password only when the local entry is absent, unusable, stale, or the task
+  explicitly manages 1Password; network or route failures do not justify that
+  fallback.
 - Never reveal credential values. Validate that required values are nonempty
   before consequential actions while keeping them out of chat, logs, tracked
   files, shell history, and transcripts.
