@@ -4,12 +4,13 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from typing import NoReturn
 
-VERSION = "1"
-FORBIDDEN_FRAGMENTS = ("\0", "\n", "\r", ";", "|", "&", ">", "<", "`", "$(")
+VERSION = "3"
+FORBIDDEN_FRAGMENTS = ("\0", "\n", "\r", ";", "&", "`", "$(")
 FORBIDDEN_OPTIONS = (
     "--ext-diff",
     "--open-files-in-pager",
@@ -17,6 +18,8 @@ FORBIDDEN_OPTIONS = (
     "--paginate",
     "--textconv",
 )
+# git grep short options whose remaining characters are a value, not more flags.
+GREP_ATTACHED_VALUE_OPTIONS = "efABCm"
 DIFF_COMMANDS = {"diff", "log", "show"}
 GENERIC_READ_COMMANDS = {
     "blame",
@@ -33,6 +36,7 @@ GENERIC_READ_COMMANDS = {
     "ls-tree",
     "merge-base",
     "name-rev",
+    "rev-list",
     "rev-parse",
     "show",
     "show-ref",
@@ -50,7 +54,127 @@ BRANCH_READ_OPTIONS = (
     "-a",
     "-r",
 )
+BRANCH_VERBOSE_OPTIONS = ("-v", "-vv", "--verbose")
+CAT_FILE_MODES = ("-t", "-s", "-e", "-p")
+COUNT_OBJECTS_OPTIONS = ("-v", "-H")
+SYMBOLIC_REF_READ_OPTIONS = ("-q", "--quiet", "--short")
+CONFIG_WRITE_FORMS = (
+    "--add",
+    "--edit",
+    "--remove-section",
+    "--rename-section",
+    "--replace-all",
+    "--unset",
+    "--unset-all",
+    "-e",
+    "edit",
+    "remove-section",
+    "rename-section",
+    "set",
+    "unset",
+)
+CONFIG_GET_MODES = ("--get", "--get-all", "--get-regexp", "--get-urlmatch")
+CONFIG_LIST_MODES = ("--list", "-l")
+CONFIG_FLAGS = (
+    "--bool",
+    "--int",
+    "--local",
+    "--name-only",
+    "--null",
+    "--path",
+    "--show-origin",
+    "--show-scope",
+    "--worktree",
+    "-z",
+)
+CONFIG_VALUE_OPTIONS = ("--default", "--file", "--type", "-f")
+CONFIG_GET_SUBCOMMAND_FLAGS = ("--all", "--fixed-value", "--regexp", "--show-names")
+CONFIG_GET_SUBCOMMAND_VALUE_OPTIONS = ("--url", "--value")
 TAG_READ_OPTIONS = ("--contains", "--format", "--list", "--merged", "--no-contains", "--no-merged", "--points-at", "-l")
+LS_REMOTE_FLAGS = (
+    "--branches",
+    "--exit-code",
+    "--heads",
+    "--quiet",
+    "--refs",
+    "--symref",
+    "--tags",
+    "-b",
+    "-h",
+    "-q",
+    "-t",
+)
+# https, ssh, scp-style user@host:path, file, or an absolute local path.
+LS_REMOTE_URL = re.compile(r"^(?:https://|ssh://|file://|/)|^[\w.-]+@[\w.-]+:")
+LS_REMOTE_TIMEOUT_SECONDS = 60
+LS_REMOTE_TIMEOUT_EXIT = 124
+
+
+HELP = """\
+git-readonly: run bounded, read-only Git inspection commands.
+
+usage: git-readonly [--no-pager] [-C DIR] [--git-dir DIR] COMMAND [ARGS...]
+
+Global options: --no-pager, -C DIR, --git-dir DIR (or --git-dir=DIR). --help and
+--version are accepted before COMMAND.
+
+Allowed commands:
+  blame check-ignore describe diff diff-files diff-index diff-tree for-each-ref
+  grep log ls-files ls-tree merge-base name-rev rev-list rev-parse show
+  show-ref status          any arguments except the blocked options below
+  branch                   list only: bare, or with --list/-l, -a, -r, --contains,
+                           --merged, --no-merged, --points-at, --format,
+                           --no-contains, --show-current; -v, -vv and --verbose
+                           only modify a listing (branch -v NAME is rejected)
+  cat-file                 -t, -s, -e or -p with exactly one object
+  config                   read forms only: --get, --get-all, --get-regexp,
+                           --get-urlmatch, --list/-l, NAME, config get, config list;
+                           modifiers --show-origin --show-scope --name-only -z
+                           --null --type --bool --int --path --default --local
+                           --worktree --file/-f. Writes (set, unset, --add,
+                           --unset, --unset-all, --replace-all, --rename-section,
+                           --remove-section, --edit and NAME VALUE) are rejected.
+                           Global and system config are hidden, so they never
+                           appear in the output.
+  count-objects            -v and -H only
+  reflog                   bare, show, or exists REF
+  remote                   bare, -v, or get-url NAME
+  stash                    list or show
+  ls-remote                REMOTE [PATTERN...], where REMOTE is a configured remote
+                           name, not a URL; options --heads/-h, --branches/-b,
+                           --tags/-t, --refs, --symref, --quiet/-q, --exit-code,
+                           --sort=KEY. Local config that runs programs (ssh
+                           command, credential helpers, askpass, upload-pack) is
+                           overridden, only file, https and ssh transports are
+                           allowed, and the command stops after 60 seconds.
+  symbolic-ref             read one ref (-q, --quiet, --short); two arguments,
+                           -d, --delete and -m are rejected
+  tag                      list only (--list/-l, --contains, --merged, ...)
+  worktree                 list
+
+Blocked: fetch (writes refs and objects), merge-tree (writes objects), and every other
+command. Blocked options: --ext-diff, --open-files-in-pager, --output, --paginate,
+--textconv, and for grep every short -O form (-O, -Ocmd, -O cmd, -nOcmd), which runs
+a pager command (diff, log and show may still use -O<orderfile>). Arguments may not contain NUL, newline, CR, backtick, $( , ; or &.
+Arguments are passed to Git as an argv list without a shell, so | < > are allowed
+(regexes, --format=%an <%ae>). Hooks, fsmonitor and pagers are disabled.
+"""
+
+
+SAFETY_CONFIG_ARGS = (
+    "-c",
+    "core.hooksPath=/dev/null",
+    "-c",
+    "core.fsmonitor=false",
+    "-c",
+    "core.pager=cat",
+    "-c",
+    "pager.branch=false",
+    "-c",
+    "pager.diff=false",
+    "-c",
+    "pager.log=false",
+)
 
 
 def fail(message: str) -> NoReturn:
@@ -70,19 +194,133 @@ def query_option(value: str, allowed: tuple[str, ...]) -> bool:
     return any(value == option or value.startswith(option + "=") for option in allowed)
 
 
+def validate_config(args: list[str]) -> None:
+    """Accept only the read forms of git config, including the get and list subcommands."""
+    subcommand = args[0] if args and args[0] in {"get", "list"} else None
+    for value in args:
+        if value in CONFIG_WRITE_FORMS:
+            fail(f"config write form is not allowed: {value}")
+    if subcommand is not None:
+        args = args[1:]
+
+    flags = CONFIG_FLAGS
+    value_options = CONFIG_VALUE_OPTIONS
+    if subcommand == "get":
+        flags += CONFIG_GET_SUBCOMMAND_FLAGS
+        value_options += CONFIG_GET_SUBCOMMAND_VALUE_OPTIONS
+
+    modes: list[str] = []
+    positionals: list[str] = []
+    skip_value = False
+    for value in args:
+        if skip_value:
+            skip_value = False
+        elif value in flags or any(value.startswith(option + "=") for option in value_options if option.startswith("--")):
+            continue
+        elif value in value_options:
+            skip_value = True
+        elif subcommand is None and value in CONFIG_GET_MODES + CONFIG_LIST_MODES:
+            modes.append(value)
+        elif value.startswith("-"):
+            fail(f"config option is not in the read-only contract: {value}")
+        else:
+            positionals.append(value)
+    if skip_value:
+        fail("config option is missing its value")
+
+    if subcommand == "list":
+        expected = range(0, 1)
+    elif subcommand == "get":
+        expected = range(1, 3)
+    elif len(modes) > 1:
+        fail("config accepts one read mode")
+    elif modes and modes[0] in CONFIG_LIST_MODES:
+        expected = range(0, 1)
+    elif modes and modes[0] == "--get-urlmatch":
+        expected = range(2, 3)
+    elif modes:
+        expected = range(1, 3)
+    else:
+        expected = range(1, 2)
+    if len(positionals) not in expected:
+        fail("config needs a read form: --get, --get-all, --get-regexp, --list, NAME, or get/list")
+
+
+def reject_grep_pager_option(args: list[str]) -> None:
+    """Reject git grep -O in any short-option cluster; it runs an arbitrary pager command."""
+    for value in args:
+        if value == "--":
+            return
+        if not value.startswith("-") or value.startswith("--"):
+            continue
+        for flag in value[1:]:
+            if flag == "O":
+                fail(f"option is not read-only: {value}")
+            if flag in GREP_ATTACHED_VALUE_OPTIONS:
+                break
+
+
+def ls_remote_name(args: list[str]) -> str:
+    """Accept ls-remote listing options and return the remote name, the first positional."""
+    positionals: list[str] = []
+    for value in args:
+        if value.startswith("-"):
+            if value in LS_REMOTE_FLAGS or value.startswith("--sort="):
+                continue
+            fail(f"ls-remote option is not in the read-only contract: {value}")
+        positionals.append(value)
+    if not positionals:
+        fail("ls-remote needs a configured remote name")
+    return positionals[0]
+
+
+def ls_remote_config_args() -> list[str]:
+    """Override local config that would run a program while contacting the remote.
+
+    remote.NAME.uploadpack keeps its first value, so -c cannot replace it; main()
+    passes --upload-pack on the command line instead.
+    """
+    overrides = (
+        "core.askPass=",
+        "core.sshCommand=ssh",
+        "credential.helper=",
+        "protocol.allow=never",
+        "protocol.ext.allow=never",
+        "protocol.git.allow=never",
+        "protocol.file.allow=always",
+        "protocol.https.allow=always",
+        "protocol.ssh.allow=always",
+    )
+    return [arg for override in overrides for arg in ("-c", override)]
+
+
 def validate_subcommand(command: str, args: list[str]) -> None:
     for value in args:
         reject_unsafe_token(value)
+    if command == "grep":
+        reject_grep_pager_option(args)
 
     if command in GENERIC_READ_COMMANDS:
         return
     if command == "branch":
-        if not args:
+        rest = [value for value in args if value not in BRANCH_VERBOSE_OPTIONS]
+        if not rest:
             return
-        if all((not value.startswith("-")) or query_option(value, BRANCH_READ_OPTIONS) for value in args):
-            if any(query_option(value, BRANCH_READ_OPTIONS) for value in args):
+        if all((not value.startswith("-")) or query_option(value, BRANCH_READ_OPTIONS) for value in rest):
+            if any(query_option(value, BRANCH_READ_OPTIONS) for value in rest):
                 return
         fail("branch is limited to listing and query options")
+    if command == "cat-file":
+        if len(args) == 2 and args[0] in CAT_FILE_MODES and not args[1].startswith("-"):
+            return
+        fail("cat-file is limited to -t, -s, -e or -p with one object")
+    if command == "config":
+        validate_config(args)
+        return
+    if command == "count-objects":
+        if all(value in COUNT_OBJECTS_OPTIONS for value in args):
+            return
+        fail("count-objects is limited to -v and -H")
     if command == "remote":
         if not args or args == ["-v"]:
             return
@@ -98,15 +336,22 @@ def validate_subcommand(command: str, args: list[str]) -> None:
         fail("tag is limited to listing and query options")
     if command == "worktree" and args and args[0] == "list":
         return
-    if command == "reflog" and args and args[0] == "show":
-        return
+    if command == "reflog":
+        if not args or args[0] == "show":
+            return
+        if args[0] == "exists" and len(args) == 2 and not args[1].startswith("-"):
+            return
+        fail("reflog is limited to show and exists")
     if command == "stash" and args and args[0] in {"list", "show"}:
         return
+    if command == "ls-remote":
+        ls_remote_name(args)
+        return
     if command == "symbolic-ref":
-        values = [value for value in args if value not in {"-q", "--quiet", "--short"}]
-        if values == ["HEAD"]:
+        values = [value for value in args if value not in SYMBOLIC_REF_READ_OPTIONS]
+        if len(values) == 1 and not values[0].startswith("-"):
             return
-        fail("symbolic-ref is limited to reading HEAD")
+        fail("symbolic-ref is limited to reading one ref")
     fail(f"subcommand is not in the read-only contract: {command}")
 
 
@@ -116,17 +361,25 @@ def main() -> int:
         print(f"git-readonly {VERSION}")
         return 0
 
-    cwd: str | None = None
-    if args[:1] == ["--no-pager"]:
-        args = args[1:]
-    if args[:1] == ["-C"]:
-        if len(args) < 3:
-            fail("-C requires a directory and subcommand")
-        cwd = args[1]
-        reject_unsafe_token(cwd)
-        args = args[2:]
-    if args[:1] == ["--no-pager"]:
-        args = args[1:]
+    global_args: list[str] = []
+    while args:
+        if args[0] == "--no-pager":
+            args = args[1:]
+        elif args[0] in {"-C", "--git-dir"}:
+            if len(args) < 3:
+                fail(f"{args[0]} requires a value and subcommand")
+            reject_unsafe_token(args[1])
+            global_args.extend(args[:2])
+            args = args[2:]
+        elif args[0].startswith("--git-dir="):
+            reject_unsafe_token(args[0])
+            global_args.append(args[0])
+            args = args[1:]
+        else:
+            break
+    if args[:1] == ["--help"]:
+        print(HELP, end="")
+        return 0
     if not args:
         fail("missing Git subcommand")
     if args[0].startswith("-"):
@@ -136,27 +389,12 @@ def main() -> int:
     reject_unsafe_token(command)
     validate_subcommand(command, command_args)
 
-    git_args = [
-        "git",
-        "-c",
-        "core.hooksPath=/dev/null",
-        "-c",
-        "core.fsmonitor=false",
-        "-c",
-        "core.pager=cat",
-        "-c",
-        "pager.branch=false",
-        "-c",
-        "pager.diff=false",
-        "-c",
-        "pager.log=false",
-    ]
-    if cwd is not None:
-        git_args.extend(["-C", cwd])
-    git_args.append(command)
-    if command in DIFF_COMMANDS:
-        git_args.extend(["--no-ext-diff", "--no-textconv"])
-    git_args.extend(command_args)
+    git_args = ["git"]
+    if command != "config":
+        # Config reads must report real values, so only other commands get the overrides.
+        git_args.extend(SAFETY_CONFIG_ARGS)
+    git_args.extend(global_args)
+    remote = ls_remote_name(command_args) if command == "ls-remote" else None
 
     env = os.environ.copy()
     for name in list(env):
@@ -172,7 +410,37 @@ def main() -> int:
         GIT_PAGER="cat",
         GIT_TERMINAL_PROMPT="0",
     )
-    return subprocess.run(git_args, env=env, check=False).returncode
+
+    if remote is not None:
+        # Only a configured remote name: a URL argument would bypass the overrides below.
+        listed = subprocess.run(
+            [*git_args, "remote"], env=env, check=False, capture_output=True, text=True
+        )
+        if remote not in listed.stdout.split():
+            fail(f"ls-remote needs a configured remote name, not {remote!r}")
+        url = subprocess.run(
+            [*git_args, "remote", "get-url", remote], env=env, check=False, capture_output=True, text=True
+        ).stdout.strip()
+        if not LS_REMOTE_URL.match(url):
+            fail(f"ls-remote allows only https, ssh and local remotes, not {url!r}")
+        git_args[1:1] = ls_remote_config_args()
+    git_args.append(command)
+    if remote is not None:
+        git_args.append("--upload-pack=git-upload-pack")
+    if command in DIFF_COMMANDS:
+        git_args.extend(["--no-ext-diff", "--no-textconv"])
+    git_args.extend(command_args)
+
+    try:
+        return subprocess.run(
+            git_args,
+            env=env,
+            check=False,
+            timeout=LS_REMOTE_TIMEOUT_SECONDS if remote is not None else None,
+        ).returncode
+    except subprocess.TimeoutExpired:
+        print(f"git-readonly: ls-remote stopped after {LS_REMOTE_TIMEOUT_SECONDS} seconds", file=sys.stderr)
+        return LS_REMOTE_TIMEOUT_EXIT
 
 
 if __name__ == "__main__":
