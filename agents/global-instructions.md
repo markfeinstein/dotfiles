@@ -6,6 +6,11 @@
   registered worktrees instead of inferring them from the current path. Treat
   bare Git directories as infrastructure, not workspaces.
 
+## Writing as the User
+
+- Before drafting text that will be posted under the user's name (Jira, PR
+  descriptions and replies, chat, email), load `human-writing`.
+
 ## Credentials and External Systems
 
 - Inspect non-secret metadata and effective configuration before credential use.
