@@ -344,6 +344,19 @@ let
                 -c 'lua dofile("${./tests/neovim-cached-plugins.lua}")'
               touch "$out"
             '';
+          neovim-cache-namespace =
+            let
+              home = homeConfigurations."${system}-personal";
+            in
+            pkgs.runCommand "neovim-cache-namespace-check" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
+              export HOME="$TMPDIR/home"
+              mkdir -p "$HOME"
+              DOTFILES_NVIM=${lib.getExe home.config.programs.neovim.finalPackage} \
+                DOTFILES_NVIM_CONFIG=${home.config.dotfiles.neovim.finalConfigSource} \
+                DOTFILES_NVIM_PACK=${home.config.xdg.dataFile."nvim/site/pack/hm".source} \
+                node --test ${./tests/neovim-cache-namespace.test.cjs}
+              touch "$out"
+            '';
         }
       ))
       {
