@@ -421,6 +421,9 @@ in
       package = pkgs.neovim;
       defaultEditor = true;
       sideloadInitLua = true;
+      # The sideloaded wrapper runs this before init.lua enables vim.loader, so
+      # each immutable config target gets its own bytecode cache namespace.
+      initLua = lib.mkBefore (builtins.readFile ./neovim/cache-namespace.lua);
       viAlias = true;
       vimAlias = true;
       vimdiffAlias = true;

@@ -122,6 +122,15 @@ unavailable from the machine's configured substituters. This does not add or
 trust new caches. `checks.<system>.neovim-cached-plugins` exercises the configured
 nightly with these packages in an isolated home directory.
 
+Nix gives every store file the same timestamp, so a same-size edit could let
+`vim.loader` reuse stale bytecode. The wrapper therefore selects
+`stdpath("cache")/luac/<sha256 of the resolved config path>` before `init.lua`
+enables the loader. A new config target gets a new cache; restarts and rollbacks
+reuse an existing one. Old namespaces are not pruned automatically.
+`checks.<system>.neovim-cache-namespace` reproduces the stale-cache bug and
+verifies the namespace against real Neovim processes. `vim.loader.path` is an
+internal Neovim API, so keep that check passing when updating Neovim.
+
 Obsidian is the intentional exception: `nix/packages/obsidian-nvim.nix` pins
 [`markfeinstein/obsidian.nvim`](https://github.com/markfeinstein/obsidian.nvim)
 to a specific commit and source hash. Its locked npm dependencies are built by
