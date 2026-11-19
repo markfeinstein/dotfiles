@@ -168,7 +168,9 @@ let
     trustedServers = cfg.mcpPermissions.trustedServers;
   };
 
-  guardrailsConfig = pkgs.writeText "guardrails.json" (builtins.toJSON (import ./pi/guardrails.nix));
+  guardrailsConfig = pkgs.writeText "guardrails.json" (
+    builtins.toJSON (import ./pi/guardrails.nix { inherit (cfg.guardrails) gateInfraChanges; })
+  );
 
   skillFiles = builtins.listToAttrs (
     map (
@@ -265,6 +267,12 @@ in
     };
 
     usageDashboard.enable = lib.mkEnableOption "the pinned @mturley/pi-usage-extension provider usage dashboard";
+
+    guardrails.gateInfraChanges = lib.mkEnableOption ''
+      guardrails confirmation for live infrastructure changes: kubectl, Terraform
+      and Helm mutations, AWS and Google Cloud writes, and copies into buckets.
+      Dry runs and reads are not gated
+    '';
 
     packageUpdates = lib.mkOption {
       type = lib.types.enum [
