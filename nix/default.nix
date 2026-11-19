@@ -250,6 +250,12 @@ let
             home = homeConfigurations."${system}-work";
             inherit lib pkgs;
           };
+          obsidian-quickadd = pkgs.runCommand "obsidian-quickadd-check" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
+            QUESTION_SCRIPT=${../obsidian/quickadd/new-question.js} \
+            DOTFILES_OBSIDIAN_LOG_CASES=${./tests/question-log-cases.json} \
+              node --test ${./tests/new-question.test.cjs}
+            touch "$out"
+          '';
           pi-profile-options = import ./tests/pi-profile-options.nix {
             home = homeConfigurations."${system}-personal";
             inherit lib pkgs;

@@ -141,6 +141,29 @@ The QuickAdd JavaScript script is independent of this migration. Do not remove,
 install, or overwrite the live-vault script as part of adopting the shared
 Neovim implementation.
 
+## QuickAdd question script
+
+`obsidian/quickadd/new-question.js` is the desktop counterpart of
+`:ObsidianQuestion`: a QuickAdd user script for a macro such as **New
+question**. It uses the same filename, `date`, `asked_in`, and log-insertion
+rules, including placement under the log heading in daily notes and
+cursor-local links elsewhere. Existing question notes are linked, never
+overwritten.
+
+Nix does not install it. Copy it into the vault (for example under
+`8 - Resources/Scripts/`), after comparing it with any existing copy, and add it
+to a QuickAdd macro. Its QuickAdd settings default to the shared Neovim layout:
+
+| Setting | Default |
+| --- | --- |
+| Questions folder | `2 - Notes/Knowledge/Questions` |
+| Question template | `8 - Resources/Templates/Question.md` |
+| Daily notes folder | `1 - Journals` |
+| Log heading | `## Log` |
+
+Blank settings fall back to these defaults. Keep them in step with the vault's
+`dotfiles.neovim.obsidian` options when either is changed.
+
 ## Verification
 
 The flake exports `checks.<system>.obsidian-capture`. It runs the actual generated
@@ -160,10 +183,16 @@ vaults. Coverage includes:
 - people lookup, Blink registration idempotence, and real `obsidian-ls` note,
   alias, and heading completion.
 
-Run the focused check without activation:
+`checks.<system>.obsidian-quickadd` runs the QuickAdd script with mocked
+Obsidian editor and vault APIs. Both checks read `nix/tests/question-log-cases.json`,
+so the two implementations cannot drift on log placement. Set `QUESTION_SCRIPT`
+to test an installed copy with `node --test nix/tests/new-question.test.cjs`.
+
+Run the focused checks without activation:
 
 ```sh
-nix build --no-link '.#checks.aarch64-darwin.obsidian-capture'
+nix build --no-link '.#checks.aarch64-darwin.obsidian-capture' \
+  '.#checks.aarch64-darwin.obsidian-quickadd'
 ```
 
 These are headless tests. Prompt responses are supplied programmatically, and
