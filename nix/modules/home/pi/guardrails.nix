@@ -2,6 +2,10 @@ let
   ghApiCommand = ''(?:^|[;&|(){}\s])gh(?:\s+(?:-[^\s;&|(){}]+|--[^\s;&|(){}]+)(?:[=\s]+(?:"[^"]*"|'[^']*'|[^\s;&|(){}]+))?)*\s+api\b'';
   # The rest of the current command segment, with quoted text treated as opaque.
   commandSegment = ''(?:[^;&|'"]|"(?:[^"\\]|\\.)*"|'[^']*')*'';
+  # One absolute path below /tmp (or /private/tmp): at least one segment, no
+  # "." or ".." segments, no trailing slash (it would follow a symlink), and
+  # no quotes, globs, variables or other shell syntax.
+  tmpPath = ''(?:/private)?/tmp(?:/(?!\.\.?(?:/|[ \t]|$))[A-Za-z0-9._@+-]+)+'';
 in
 {
   applyBuiltinDefaults = true;
@@ -13,7 +17,16 @@ in
   features.permissionGate = true;
   permissionGate = {
     requireConfirmation = true;
-    allowedPatterns = [ ];
+    # An allowed pattern skips the gate for the whole command, so this one must
+    # match the entire command: a single rm of paths under /tmp, nothing
+    # chained before or after it.
+    allowedPatterns = [
+      {
+        pattern = ''^[ \t]*rm(?:[ \t]+(?:-[rRfv]+|--(?:recursive|force|verbose)|--))+(?:[ \t]+${tmpPath})+[ \t]*$'';
+        regex = true;
+        description = "recursive delete of scratch paths under /tmp";
+      }
+    ];
     patterns =
       map
         (entry: {

@@ -6,6 +6,12 @@ const { test } = require("node:test");
 
 const config = JSON.parse(readFileSync(process.env.GUARDRAILS_RULES, "utf8"));
 const rules = config.permissionGate.patterns;
+const allowed = config.permissionGate.allowedPatterns;
+
+// pi-guardrails skips the gate for the whole command when any allowed pattern matches.
+function isAllowed(command) {
+  return allowed.some((rule) => (rule.regex ? new RegExp(rule.pattern).test(command) : command.includes(rule.pattern)));
+}
 
 function matchingRules(command) {
   return rules
@@ -98,6 +104,48 @@ test("plain read-only gh api calls match no rule", () => {
     "gh pr view 1 -R o/r --json state",
   ]) {
     assert.deepEqual(matchingRules(command), [], command);
+  }
+});
+
+test("recursive deletes of scratch paths under /tmp skip the gate", () => {
+  for (const command of [
+    "rm -rf /tmp/sr-scan",
+    "rm -fr /tmp/pi-review/out",
+    "rm -r -f /private/tmp/pi-addon-trial.7j8TNi",
+    "rm --recursive --force -- /tmp/a /tmp/b.c",
+    "rm -rfv /tmp/calmeet-test",
+    "  rm -rf /tmp/x  ",
+  ]) {
+    assert.ok(isAllowed(command), command);
+  }
+});
+
+test("other recursive deletes still need confirmation", () => {
+  for (const command of [
+    "rm -rf /tmp",
+    "rm -rf /tmp/",
+    "rm -rf /tmp/*",
+    "rm -rf /tmp/link/",
+    "rm -rf /tmp/..",
+    "rm -rf /tmp/x/../../etc",
+    "rm -rf /tmp/x/.",
+    "rm -rf /tmp/x ~/dev",
+    "rm -rf /tmp/x /",
+    "rm -rf tmp/x",
+    "rm -rf /tmpfoo",
+    "rm -rf /var/tmp/x",
+    'rm -rf "$TMPDIR"/x',
+    "rm -rf /tmp/$x",
+    "rm -rf /tmp/x && ls /tmp/x",
+    "rm -rf /tmp/x; sudo ls",
+    "rm -rf /tmp/x\nsudo ls",
+    "rm -rf /tmp/x | tee log",
+    "rm -rf /tmp/x $(echo /)",
+    "echo hi; rm -rf /tmp/x",
+    "sudo rm -rf /tmp/x",
+    "rm -rf /tmp/x 2>/dev/null",
+  ]) {
+    assert.ok(!isAllowed(command), command);
   }
 });
 
