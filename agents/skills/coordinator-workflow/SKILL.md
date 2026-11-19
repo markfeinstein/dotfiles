@@ -55,6 +55,11 @@ justifies the startup, supervision, and review cost.
 - On completion, read artifacts and verify the requested observable outcome.
   A successful worker receipt, commit, test exit, or delegation return alone is
   not acceptance. Record evidence and gaps before scheduling dependent work.
+- After accepting a worker's result, close its Rex tab unless the user asked to
+  keep it.
+- For outside systems (CI, Atlantis, review bots), use a bounded watcher such
+  as `gh pr checks --watch --fail-fast` or one timed check, not repeated
+  `sleep` loops.
 
 ## Pause, recovery, and takeover
 
