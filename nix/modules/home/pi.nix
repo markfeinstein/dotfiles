@@ -98,6 +98,13 @@ let
     packages = packageSpecs;
   };
 
+  offlinePackageUpdates = cfg.packageUpdates == "offline";
+  dryRunPackageUpdateMessage =
+    if offlinePackageUpdates then
+      "Would reconcile cached Pi extension packages offline with a five-minute deadline"
+    else
+      "Would update managed Pi extension packages with a five-minute deadline";
+
   mcpPermissionConfig = jsonFormat.generate "mcp-permissions.json" {
     trustedServers = cfg.mcpPermissions.trustedServers;
   };
@@ -156,6 +163,20 @@ in
     };
 
     solidcraft.enable = lib.mkEnableOption "the SolidCraft Pi ACP bridge";
+
+    packageUpdates = lib.mkOption {
+      type = lib.types.enum [
+        "update"
+        "offline"
+      ];
+      default = "update";
+      description = ''
+        How activation runs `pi update --extensions`. `update` may fetch newer
+        floating package versions; `offline` sets PI_OFFLINE=1 so activation
+        only reconciles cached packages, leaving upgrades to an explicit
+        `pi update`.
+      '';
+    };
 
     mcpPermissions.trustedServers = lib.mkOption {
       inherit (jsonFormat) type;
@@ -279,10 +300,12 @@ in
             ]
             ''
               if [ -n "''${DRY_RUN_CMD:-}" ]; then
-                echo "Would update managed Pi extension packages with a five-minute deadline"
+                echo ${lib.escapeShellArg dryRunPackageUpdateMessage}
               else
+                # Set inside the hook: Home Manager's sanitized environment
+                # drops flags supplied by the caller.
                 PATH=${lib.escapeShellArg (lib.makeBinPath piExtraPackages)}:$PATH \
-                  NPM_CONFIG_UPDATE_NOTIFIER=false \
+                  ${lib.optionalString offlinePackageUpdates "PI_OFFLINE=1 "}NPM_CONFIG_UPDATE_NOTIFIER=false \
                   ${pkgs.coreutils}/bin/timeout --signal=TERM --kill-after=10s 300s \
                   ${lib.getExe config.programs.pi-coding-agent.package} update --extensions
               fi
