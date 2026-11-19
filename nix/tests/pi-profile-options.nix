@@ -49,6 +49,8 @@ let
     && agent.machine == "local"
   ) (builtins.attrNames bridgeRoles);
 in
+assert (settings base).powerline.git.polling == "branch";
+assert (settings base).sessions.autoTitle.model == "session";
 assert !(lib.any isUsage (settings base).packages);
 assert builtins.length usageSpecs == 1;
 assert lib.hasPrefix builtins.storeDir (builtins.head usageSpecs);
