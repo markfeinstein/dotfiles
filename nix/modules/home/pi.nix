@@ -66,7 +66,12 @@ let
     cfg.subagentPackageSpec
     "npm:pi-web-access"
   ];
-  packageSpecs = lib.unique (commonPackageSpecs ++ cfg.packageSpecs);
+  optionalPackageSpecs =
+    lib.optional cfg.claudeBridge.enable cfg.claudeBridge.packageSpec
+    ++ lib.optional cfg.usageDashboard.enable (
+      toString (pkgs.callPackage ../../packages/pi-usage-extension.nix { })
+    );
+  packageSpecs = lib.unique (commonPackageSpecs ++ optionalPackageSpecs ++ cfg.packageSpecs);
   commonExtraPackages = [
     pkgs.claude-code
     pkgs.nodejs
@@ -95,9 +100,61 @@ let
   );
   baseSettings = import ./pi/settings.nix { inherit lib pkgs; };
 
-  piSettings = lib.recursiveUpdate (lib.recursiveUpdate baseSettings cfg.settings) {
-    packages = packageSpecs;
+  # One blocklist written as an enabledModels allowlist glob, so newly released
+  # models appear without an edit. Pi matches it with minimatch against
+  # provider/id (and the bare id, which a two-part pattern never matches). A
+  # leading "!" would negate the whole pattern, so the provider part uses
+  # @(!(...)) rather than !(...).
+  hiddenModelsPattern =
+    let
+      inherit (cfg.hiddenModels) providers ids;
+      alternatives = patterns: "(" + lib.concatStringsSep "|" patterns + ")";
+      provider = if providers == [ ] then "*" else "@(!${alternatives providers})";
+      id = if ids == [ ] then "*" else "!${alternatives ids}";
+    in
+    "${provider}/${id}";
+  modelScopeSettings = lib.optionalAttrs (
+    cfg.hiddenModels.providers != [ ] || cfg.hiddenModels.ids != [ ]
+  ) { enabledModels = [ hiddenModelsPattern ]; };
+
+  # Bridge model defaults for fresh sessions and native subagent roles. Only
+  # models change; inherited role tools, skills, placement and limits remain.
+  # Profile settings still win. Existing sessions keep their recorded provider.
+  claudeBridgeModel = family: "claude-bridge/claude-${family}-5-5";
+  claudeBridgeSettings = lib.optionalAttrs cfg.claudeBridge.enable {
+    defaultProvider = "claude-bridge";
+    defaultModel = "claude-opus-5-5";
+    defaultThinkingLevel = "high";
+    modelThinkingLevels = {
+      ${claudeBridgeModel "opus"} = "high";
+      ${claudeBridgeModel "sonnet"} = "medium";
+    };
+    subagents = {
+      defaultModel = claudeBridgeModel "sonnet";
+      agentOverrides = {
+        scout.model = claudeBridgeModel "haiku";
+        researcher.model = claudeBridgeModel "sonnet";
+        worker.model = claudeBridgeModel "sonnet";
+        reviewer.model = claudeBridgeModel "opus";
+        "evidence-auditor".model = claudeBridgeModel "opus";
+        oracle = {
+          model = claudeBridgeModel "opus";
+          # The interactive Opus effort, not the GPT oracle's xhigh.
+          thinking = "high";
+        };
+      };
+    };
   };
+
+  piSettings =
+    lib.foldl' lib.recursiveUpdate baseSettings [
+      modelScopeSettings
+      claudeBridgeSettings
+      cfg.settings
+    ]
+    // {
+      packages = packageSpecs;
+    };
 
   offlinePackageUpdates = cfg.packageUpdates == "offline";
   dryRunPackageUpdateMessage =
@@ -165,6 +222,49 @@ in
 
     solidcraft.enable = lib.mkEnableOption "the SolidCraft Pi ACP bridge";
 
+    hiddenModels = {
+      providers = lib.mkOption {
+        type = lib.types.listOf (lib.types.strMatching "[A-Za-z0-9._-]+");
+        default = [ ];
+        description = "Providers hidden from Pi model selection and cycling, such as one that duplicates another provider's models";
+      };
+
+      ids = lib.mkOption {
+        type = lib.types.listOf (lib.types.strMatching "[^|()/]+");
+        default = [
+          "claude-*-4"
+          "claude-*-4-*"
+          "gpt-4*"
+          "o[0-9]*"
+          "gpt-5"
+          "gpt-5-*"
+          "gpt-5.[0-4]*"
+        ];
+        description = ''
+          Minimatch globs for superseded model ids hidden from Pi model selection
+          and cycling. Rendered with `providers` into one `enabledModels`
+          pattern; an explicit `settings.enabledModels` replaces it. Set both
+          lists to `[ ]` to show every available model.
+        '';
+      };
+    };
+
+    claudeBridge = {
+      enable = lib.mkEnableOption ''
+        the pi-claude-bridge provider as the default for fresh sessions and
+        native subagent roles. The legacy claude-code provider stays installed
+        for existing histories but is hidden from model selection
+      '';
+
+      packageSpec = lib.mkOption {
+        type = lib.types.nonEmptyStr;
+        default = "npm:pi-claude-bridge@0.13.0";
+        description = "Pinned pi-claude-bridge package source";
+      };
+    };
+
+    usageDashboard.enable = lib.mkEnableOption "the pinned @mturley/pi-usage-extension provider usage dashboard";
+
     packageUpdates = lib.mkOption {
       type = lib.types.enum [
         "update"
@@ -196,6 +296,9 @@ in
     # non-destructive annotated reads pass; profiles can still override it.
     dotfiles.pi.mcpPermissions.trustedServers.superlogical.exactUrl =
       lib.mkDefault "https://www.superlogical.com/rex/community-mcp";
+
+    # Bridge serves the same Claude models, so hide the duplicate legacy ones.
+    dotfiles.pi.hiddenModels.providers = lib.mkIf cfg.claudeBridge.enable [ "claude-code" ];
 
     assertions = [
       {

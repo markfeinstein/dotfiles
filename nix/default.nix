@@ -250,6 +250,10 @@ let
             home = homeConfigurations."${system}-work";
             inherit lib pkgs;
           };
+          pi-profile-options = import ./tests/pi-profile-options.nix {
+            home = homeConfigurations."${system}-personal";
+            inherit lib pkgs;
+          };
           marksman-binary = pkgs.runCommand "marksman-binary-check" { } ''
             ${pkgs.python3}/bin/python ${./tests/marksman-lsp.py} ${lib.getExe pkgs.marksman}
             touch "$out"
