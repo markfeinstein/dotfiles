@@ -7,9 +7,11 @@ host=''
 host_from_override=0
 flake_override="${DOTFILES_FLAKE:-}"
 flake_from_flag=0
+# Last resort only: explicit flags and variables, then a persisted profile
+# source, take precedence over it.
 default_flake=github:markfeinstein/dotfiles/main
-personal_flake="${DOTFILES_PERSONAL_FLAKE:-$default_flake}"
-work_flake="${DOTFILES_WORK_FLAKE:-$default_flake}"
+personal_flake="${DOTFILES_PERSONAL_FLAKE:-}"
+work_flake="${DOTFILES_WORK_FLAKE:-}"
 profile_file="${DOTFILES_PROFILE_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles/profile}"
 source_dir="${DOTFILES_SOURCE_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles/sources}"
 source_file=''
@@ -83,7 +85,9 @@ Darwin host precedence:
 
 Remote source precedence:
   --flake or DOTFILES_FLAKE, then DOTFILES_PERSONAL_FLAKE or
-  DOTFILES_WORK_FLAKE, then the selected profile's persisted source
+  DOTFILES_WORK_FLAKE, then the selected profile's persisted source,
+  then github:markfeinstein/dotfiles/main. A persisted local checkout is
+  used in local mode unless a flag or variable selects another source.
 
 Environment:
   DOTFILES_PROFILE, DOTFILES_PROFILE_FILE, DOTFILES_SOURCE_DIR, DOTFILES_HOST,
@@ -256,10 +260,8 @@ fi
 
 if [[ "$profile" == personal ]]; then
   selected_profile_flake=$personal_flake
-  profile_flake_variable=DOTFILES_PERSONAL_FLAKE
 else
   selected_profile_flake=$work_flake
-  profile_flake_variable=DOTFILES_WORK_FLAKE
 fi
 
 persisted_repo=''
@@ -305,13 +307,7 @@ else
   source_ref=$flake_override
   [[ -n "$source_ref" ]] || source_ref=$selected_profile_flake
   [[ -n "$source_ref" ]] || source_ref=$persisted_flake
-  if [[ -z "$source_ref" ]]; then
-    if [[ -n "$profile" ]]; then
-      fail "$profile flake unknown: set $profile_flake_variable or pass --flake"
-    else
-      fail 'remote flake unknown: set DOTFILES_FLAKE or pass --flake'
-    fi
-  fi
+  [[ -n "$source_ref" ]] || source_ref=$default_flake
 fi
 
 [[ "$mode" != update || "$source_mode" == local ]] || fail 'update requires --local/--repo'
