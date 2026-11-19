@@ -27,7 +27,10 @@
 - Inspect non-secret metadata and effective configuration before credential use.
   Prefer configured host aliases, on-disk identity files, and existing local
   credential mechanisms.
-- Use existing `pass` entries before `op`. Do not infer local lookup order from a
+- Before long or unattended work that needs cloud or GitHub access, run `creds`
+  if it is installed, and ask the user to fix everything it reports in one
+  message.
+- Where `pass` is installed, use existing `pass` entries before `op`. Do not infer local lookup order from a
   repository's runtime secret source. Use 1Password only when the local entry is
   absent, unusable, stale, or the task explicitly manages 1Password; network or
   route failures do not justify that fallback.
