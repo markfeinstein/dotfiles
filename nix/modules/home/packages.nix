@@ -24,6 +24,7 @@ in
     pkgs._1password-cli
     pkgs.actionlint
     pkgs.claude-code
+    pkgs.gitleaks
     pkgs.markdownlint-cli
     pkgs.openssl
     pkgs.tokei
