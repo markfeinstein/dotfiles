@@ -6,6 +6,17 @@
   registered worktrees instead of inferring them from the current path. Treat
   bare Git directories as infrastructure, not workspaces.
 
+## Reporting
+
+- Give numbered options or next steps one plain sentence each: what it does
+  and why. Name the ticket, PR, or file it concerns and mark the recommended one.
+- When reporting that checks or tests ran, include the command and the decisive
+  output line, or the log path.
+- Cite the source (link, comment, or file:line) for facts taken from tickets,
+  PRs, docs, or code.
+- In multi-ticket or multi-session work, start each update by naming the
+  current target.
+
 ## Writing as the User
 
 - Before drafting text that will be posted under the user's name (Jira, PR
