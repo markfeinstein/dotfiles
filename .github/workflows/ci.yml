@@ -46,7 +46,7 @@ jobs:
       - name: Evaluate all systems and profiles
         run: nix flake check --all-systems --no-build --show-trace
       - name: Check Nix formatting
-        run: nix fmt -- --check .
+        run: nix fmt -- --ci
 
   lint:
     name: Workflow and shell lint

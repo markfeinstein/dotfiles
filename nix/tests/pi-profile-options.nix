@@ -1,4 +1,8 @@
-{ home, lib, pkgs }:
+{
+  home,
+  lib,
+  pkgs,
+}:
 let
   settings = config: config.programs.pi-coding-agent.settings;
   extend = modules: (home.extendModules { inherit modules; }).config;
@@ -31,12 +35,30 @@ let
     }
   ]);
   bridgeRoles = {
-    scout = [ "haiku" "low" ];
-    researcher = [ "sonnet" "medium" ];
-    worker = [ "sonnet" "high" ];
-    reviewer = [ "opus" "high" ];
-    evidence-auditor = [ "opus" "high" ];
-    oracle = [ "opus" "high" ];
+    scout = [
+      "haiku"
+      "low"
+    ];
+    researcher = [
+      "sonnet"
+      "medium"
+    ];
+    worker = [
+      "sonnet"
+      "high"
+    ];
+    reviewer = [
+      "opus"
+      "high"
+    ];
+    evidence-auditor = [
+      "opus"
+      "high"
+    ];
+    oracle = [
+      "opus"
+      "high"
+    ];
   };
   bridgeRoleChecks = lib.all (
     role:
@@ -67,10 +89,11 @@ assert bridge.enabledModels == [ "@(!(claude-code))/${supersededIds}" ];
 assert bridge.defaultProvider == "claude-bridge";
 assert bridge.defaultModel == "claude-opus-5-5";
 assert bridge.defaultThinkingLevel == "high";
-assert bridge.modelThinkingLevels == {
-  "claude-bridge/claude-opus-5-5" = "high";
-  "claude-bridge/claude-sonnet-5-5" = "medium";
-};
+assert
+  bridge.modelThinkingLevels == {
+    "claude-bridge/claude-opus-5-5" = "high";
+    "claude-bridge/claude-sonnet-5-5" = "medium";
+  };
 assert bridge.subagents.defaultModel == "claude-bridge/claude-sonnet-5-5";
 assert bridge.subagents.defaultThinking == "medium";
 assert lib.assertMsg bridgeRoleChecks "Bridge role models or inherited role settings changed";

@@ -28,7 +28,7 @@ local formatters_by_ft = {
 	["_"] = { lsp_format = "first" },
 	["*"] = M.cleanup_formatters,
 	lua = { "stylua" },
-	nix = { "alejandra" },
+	nix = { "nixfmt" },
 	nu = { "nufmt" },
 	sh = { "shfmt" },
 }

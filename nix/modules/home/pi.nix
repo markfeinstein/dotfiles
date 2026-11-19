@@ -378,20 +378,22 @@ in
           confirmSend = false;
           replyHint = true;
         };
-        ".pi/agent/extensions/subagent/config.json".text = builtins.toJSON (lib.recursiveUpdate {
-          # Per-run concurrency, not a cross-run fleet-wide hard cap.
-          globalConcurrencyLimit = 3;
-          activeRunsPrompt = true;
-          asyncWidget = false;
-          checkpointBeforeDeadlineMs = 300000;
-          inlineToolDisplay = "summary";
-          maxActiveAsyncRunsPerSession = 2;
-          maxSubagentDepth = 1;
-          maxSubagentSpawnsPerRun = 64;
-          maxSubagentSpawnsPerSession = 256;
-          timeoutMs = 3600000;
-          worktreeProvider = "worktrunk";
-        } cfg.subagentConfig);
+        ".pi/agent/extensions/subagent/config.json".text = builtins.toJSON (
+          lib.recursiveUpdate {
+            # Per-run concurrency, not a cross-run fleet-wide hard cap.
+            globalConcurrencyLimit = 3;
+            activeRunsPrompt = true;
+            asyncWidget = false;
+            checkpointBeforeDeadlineMs = 300000;
+            inlineToolDisplay = "summary";
+            maxActiveAsyncRunsPerSession = 2;
+            maxSubagentDepth = 1;
+            maxSubagentSpawnsPerRun = 64;
+            maxSubagentSpawnsPerSession = 256;
+            timeoutMs = 3600000;
+            worktreeProvider = "worktrunk";
+          } cfg.subagentConfig
+        );
         ".pi/agent/npm/node_modules/pi-web-access/node_modules/@earendil-works/pi-coding-agent".source =
           "${pkgs.pi-coding-agent}/lib/node_modules/pi-monorepo";
       }

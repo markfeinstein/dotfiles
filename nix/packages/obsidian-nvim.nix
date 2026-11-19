@@ -2,7 +2,8 @@
   buildNpmPackage,
   fetchFromGitHub,
   obsidian-nvim,
-}: let
+}:
+let
   revision = "7853809d57cbfe4843b0310c81985cac589a29ec";
   version = "3.16.10-unstable-2026-11-17";
   src = fetchFromGitHub {
@@ -15,7 +16,7 @@
     pname = "obsidian-nvim-bases-runtime";
     inherit version src;
     npmDepsHash = "sha256-lru5XdCcN8SRGVhoWnYgIGDoLun0zuKDnjllZGtIZvo=";
-    npmFlags = ["--ignore-scripts"];
+    npmFlags = [ "--ignore-scripts" ];
     dontNpmBuild = true;
     installPhase = ''
       runHook preInstall
@@ -25,18 +26,16 @@
     '';
   };
 in
-  obsidian-nvim.overrideAttrs (old: {
-    inherit version src;
-    # The worker resolves its npm dependencies relative to the plugin root.
-    postInstall =
-      (old.postInstall or "")
-      + ''
-        ln -s ${evaluator}/node_modules "$out/node_modules"
-      '';
-    passthru = (old.passthru or {}) // {inherit revision;};
-    meta =
-      old.meta
-      // {
-        homepage = "https://github.com/markfeinstein/obsidian.nvim";
-      };
-  })
+obsidian-nvim.overrideAttrs (old: {
+  inherit version src;
+  # The worker resolves its npm dependencies relative to the plugin root.
+  postInstall = (old.postInstall or "") + ''
+    ln -s ${evaluator}/node_modules "$out/node_modules"
+  '';
+  passthru = (old.passthru or { }) // {
+    inherit revision;
+  };
+  meta = old.meta // {
+    homepage = "https://github.com/markfeinstein/obsidian.nvim";
+  };
+})
