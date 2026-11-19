@@ -160,7 +160,12 @@ in
     mcpPermissions.trustedServers = lib.mkOption {
       inherit (jsonFormat) type;
       default = { };
-      description = "Exact non-secret MCP server identity policies";
+      description = ''
+        Exact non-secret MCP server identity policies. Each server pins
+        `exactUrl` (HTTPS) or `exactCommand`/`exactArgs` (stdio). Optional
+        `readOnlyTools` lists exact tool names to treat as reads when the server
+        omits `readOnlyHint`; explicit non-read or destructive hints still prompt.
+      '';
     };
   };
 

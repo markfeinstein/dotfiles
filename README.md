@@ -245,6 +245,21 @@ tokens in its separate credential store.
 No separate Home Assistant MCP permission pin is installed by this repository,
 so the permission extension prompts before its calls.
 
+Every profile pins the public Rex docs endpoint as the `superlogical` server.
+A trust policy can also name exact tools as reads for servers that omit
+`readOnlyHint` metadata:
+
+```nix
+dotfiles.pi.mcpPermissions.trustedServers.example = {
+  exactUrl = "https://mcp.example.com/v2/mcp";
+  readOnlyTools = [ "getPage" "search" ];
+};
+```
+
+The list applies only while the endpoint matches its pin. It never overrides an
+explicit `readOnlyHint: false` or `destructiveHint: true`, and it does not accept
+wildcards; list future read tools individually after checking their contract.
+
 ## Install
 
 Run the standalone bootstrap directly from a reviewed revision:

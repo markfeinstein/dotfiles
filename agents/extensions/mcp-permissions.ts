@@ -21,6 +21,8 @@ type OAuthPolicy = {
 type LoopbackPortArgument = { loopbackPort: true };
 type TrustedServerPolicy = {
   allowAll: boolean;
+  // Exact tool names treated as reads when the server omits readOnlyHint.
+  readOnlyTools?: ReadonlyArray<string>;
 } & (
   | {
       exactUrl: string;
@@ -34,6 +36,7 @@ type TrustedServerPolicy = {
 
 type TrustedServer = {
   allowAll: boolean;
+  readOnlyTools?: ReadonlySet<string>;
 };
 
 type PermissionConfig = {
@@ -51,6 +54,7 @@ type PermissionOptions = {
 
 const CONFIG_FILE = "mcp-permissions.json";
 const SERVER_NAME = /^[A-Za-z0-9_-]+$/;
+const TOOL_NAME = /^[A-Za-z0-9_.-]+$/;
 const MCP_EXPOSURES = new Set([
   "codemode",
   "codemode-deferred",
@@ -153,6 +157,22 @@ function parseExactArgs(
   return parsed;
 }
 
+// Exact names only: wildcards or prefixes would silently cover future writes.
+function parseReadOnlyTools(
+  value: unknown,
+): ReadonlyArray<string> | undefined {
+  if (value === undefined) return [];
+  if (
+    !Array.isArray(value) ||
+    !value.every(
+      (name) => typeof name === "string" && TOOL_NAME.test(name),
+    )
+  ) {
+    return;
+  }
+  return [...new Set(value as string[])];
+}
+
 export function readPermissionConfig(path: string): PermissionConfig {
   try {
     const document: unknown = JSON.parse(
@@ -167,6 +187,10 @@ export function readPermissionConfig(path: string): PermissionConfig {
       const allowAll = value.allowAll === true;
       if (value.allowAll !== undefined && typeof value.allowAll !== "boolean")
         continue;
+      // An invalid list drops the whole server's trust rather than guessing.
+      const readOnlyTools = parseReadOnlyTools(value.readOnlyTools);
+      if (readOnlyTools === undefined) continue;
+      const readOnly = readOnlyTools.length > 0 ? { readOnlyTools } : {};
 
       if (typeof value.exactUrl === "string") {
         if (!URL.canParse(value.exactUrl)) continue;
@@ -185,7 +209,10 @@ export function readPermissionConfig(path: string): PermissionConfig {
         if (
           !Object.keys(value).every(
             (key) =>
-              key === "exactUrl" || key === "oauth" || key === "allowAll",
+              key === "exactUrl" ||
+              key === "oauth" ||
+              key === "allowAll" ||
+              key === "readOnlyTools",
           )
         )
           continue;
@@ -193,6 +220,7 @@ export function readPermissionConfig(path: string): PermissionConfig {
           exactUrl,
           ...(oauth ? { oauth } : {}),
           allowAll,
+          ...readOnly,
         });
         continue;
       }
@@ -204,7 +232,10 @@ export function readPermissionConfig(path: string): PermissionConfig {
         exactArgs === undefined ||
         !Object.keys(value).every(
           (key) =>
-            key === "exactCommand" || key === "exactArgs" || key === "allowAll",
+            key === "exactCommand" ||
+            key === "exactArgs" ||
+            key === "allowAll" ||
+            key === "readOnlyTools",
         )
       )
         continue;
@@ -212,6 +243,7 @@ export function readPermissionConfig(path: string): PermissionConfig {
         exactCommand: value.exactCommand,
         exactArgs,
         allowAll,
+        ...readOnly,
       });
     }
     return { trustedServers };
@@ -364,7 +396,12 @@ export function resolveTrustedServers(
       ? projectConfig
       : userConfig ?? registeredConfig;
     if (endpointMatches(selected, policy)) {
-      trusted.set(serverName, { allowAll: policy.allowAll });
+      trusted.set(serverName, {
+        allowAll: policy.allowAll,
+        ...(policy.readOnlyTools?.length
+          ? { readOnlyTools: new Set(policy.readOnlyTools) }
+          : {}),
+      });
     }
   }
   return trusted;
@@ -388,6 +425,7 @@ export function evaluateMcpPermission(
   annotations: ToolAnnotations | undefined,
   serverTrusted: boolean,
   allowAll = false,
+  readOnlyTools?: ReadonlySet<string>,
 ): PermissionDecision {
   const call = parseNativeMcpToolName(toolName);
   if (!call) return { kind: "allow" };
@@ -404,6 +442,13 @@ export function evaluateMcpPermission(
     return { kind: "prompt", reason: "MCP tool declares destructive behavior" };
   }
   if (annotations?.readOnlyHint === true) return { kind: "allow" };
+  // Fill only a missing hint; an explicit readOnlyHint: false still prompts.
+  if (
+    annotations?.readOnlyHint === undefined &&
+    readOnlyTools?.has(call.originalToolName)
+  ) {
+    return { kind: "allow" };
+  }
   return {
     kind: "prompt",
     reason: "MCP call is not declared a non-destructive read",
@@ -490,6 +535,7 @@ export function registerMcpPermissions(
       annotations,
       trust !== undefined,
       trust?.allowAll,
+      trust?.readOnlyTools,
     );
     if (decision.kind === "allow") return;
     if (!ctx.hasUI) {
