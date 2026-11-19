@@ -42,6 +42,7 @@ let
     "agent-skill-engineering"
     "repository-workflow"
     "coordinator-workflow"
+    "pull-request-workflow"
   ];
   selectedSkills = lib.unique (commonSkills ++ cfg.skills);
   selectedSkillFiles = lib.concatMap (

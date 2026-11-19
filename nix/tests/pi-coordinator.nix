@@ -43,6 +43,7 @@ assert !(settings base).sessions.messaging.enable;
 assert !(settings base).sessions.subagents.enable;
 assert !(settings base).sessions.handoff.enable;
 assert builtins.hasAttr ".agents/skills/coordinator-workflow/SKILL.md" base.home.file;
+assert builtins.hasAttr ".agents/skills/pull-request-workflow/SKILL.md" base.home.file;
 assert !(lib.any (lib.hasPrefix ".agents/skills/coordinator-workflow/evals/") (builtins.attrNames base.home.file));
 pkgs.runCommand "pi-coordinator-check" { } ''
   ${pkgs.python3}/bin/python ${./pi-coordinator-structure.py} ${../..}
