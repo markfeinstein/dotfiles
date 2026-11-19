@@ -1,3 +1,8 @@
+let
+  ghApiCommand = ''(?:^|[;&|(){}\s])gh(?:\s+(?:-[^\s;&|(){}]+|--[^\s;&|(){}]+)(?:[=\s]+(?:"[^"]*"|'[^']*'|[^\s;&|(){}]+))?)*\s+api\b'';
+  # The rest of the current command segment, with quoted text treated as opaque.
+  commandSegment = ''(?:[^;&|'"]|"(?:[^"\\]|\\.)*"|'[^']*')*'';
+in
 {
   applyBuiltinDefaults = true;
   onboarding = {
@@ -85,12 +90,12 @@
           description = "GitHub pull-request command outside read-only allow-list";
         }
         {
-          pattern = ''(?:^|[;&|(){}\s])gh(?:\s+(?:-[^\s;&|(){}]+|--[^\s;&|(){}]+)(?:[=\s]+(?:"[^"]*"|'[^']*'|[^\s;&|(){}]+))?)*\s+api\b(?=[^;&|]*(?:/issues\b|/issues/|/pulls\b|/pulls/))(?=[^;&|]*(?:(?:-X|--method)(?:=|\s+)?(?:POST|PATCH|PUT|DELETE)\b|\s(?:-f|-F)(?:=|\s|[^\s;&|(){}])|\s(?:--field|--raw-field|--input)(?:=|\s)))'';
+          pattern = ''${ghApiCommand}(?=[^;&|]*(?:/issues\b|/issues/|/pulls\b|/pulls/))(?:(?=[^;&|]*(?:-X|--method)(?:=|\s+)?(?:POST|PATCH|PUT|DELETE)\b)|(?![^;&|]*\s(?:-X\s*|--method(?:=|\s+))["']?(?:GET|get)\b)(?=[^;&|]*(?:\s(?:-f|-F)(?:=|\s|[^\s;&|(){}])|\s(?:--field|--raw-field|--input)(?:=|\s))))'';
           regex = true;
           description = "GitHub issue or pull-request API mutation";
         }
         {
-          pattern = ''(?:^|[;&|(){}\s])gh(?:\s+(?:-[^\s;&|(){}]+|--[^\s;&|(){}]+)(?:[=\s]+(?:"[^"]*"|'[^']*'|[^\s;&|(){}]+))?)*\s+api\b(?=[^;&|]*\s["']?/?graphql\b["']?)'';
+          pattern = ''${ghApiCommand}(?=[^;&|]*\s["']?/?graphql\b["']?)(?:(?=[\s\S]*\bmutation\b)|(?<=\bmutation\b[\s\S]*)|(?=${commandSegment}(?:\s(?:-F\s*|--field(?:=|\s+))["']?query=@|\s--input(?:=|\s)|\s(?:-[fF]\s*|--(?:field|raw-field)(?:=|\s+))["']?query=["']?[$`])))'';
           regex = true;
           description = "GitHub GraphQL API call with possible mutation";
         }
