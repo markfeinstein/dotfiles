@@ -256,6 +256,10 @@ let
               node --test ${./tests/new-question.test.cjs}
             touch "$out"
           '';
+          git-readonly = pkgs.runCommand "git-readonly-check" { nativeBuildInputs = [ pkgs.git pkgs.python3 ]; } ''
+            python ${./tests/git-readonly.py} ${../bin/git-readonly.py}
+            touch "$out"
+          '';
           rebuild-source =
             let
               inlineShellLibrary = import ./lib/inline-shell-library.nix { inherit lib; };
