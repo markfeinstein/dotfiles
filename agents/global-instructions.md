@@ -63,10 +63,11 @@
   `git` for authorized mutations.
 - Do not hide gated actions in chains, pipes, command substitutions, wrappers,
   or scripts with unrelated lower-authority checks.
-- Keep scratch files in a task-named directory under `/tmp`. Remove it with
-  `rm -r` (no `-f`), or with `rm -rf /tmp/<dir>` as its own command: no
-  chaining, quotes, globs, variables or trailing slash. Any other `rm -rf`
-  prompts for approval and stalls unattended workers.
+- Create scratch directories with `mktemp -d /tmp/<task>.XXXXXX` instead of
+  removing and recreating a fixed path. Remove them with `rm -r` (never
+  `-f`), which does not prompt even in a chain or with a variable. Any
+  `rm -rf` other than a standalone `rm -rf /tmp/<dir>` prompts for approval
+  and stalls unattended workers.
 - The Pi MCP permission extension is the interactive approval gate for native
   MCP calls, including those made through `codemode`. Before a state-changing or
   ambiguous call, explain its server, tool, targets, expected effects, and
