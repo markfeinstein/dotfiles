@@ -220,6 +220,97 @@ test("everyday Git and Worktrunk commands are not gated", () => {
   }
 });
 
+const infraConfig = JSON.parse(readFileSync(process.env.GUARDRAILS_RULES_INFRA, "utf8"));
+const infraRules = infraConfig.permissionGate.patterns;
+function matchingInfraRules(command) {
+  return infraRules
+    .filter((rule) => (rule.regex ? new RegExp(rule.pattern).test(command) : command.includes(rule.pattern)))
+    .map((rule) => rule.description);
+}
+
+const infraChanges = {
+  "Kubernetes change": [
+    "kubectl --context $CTX apply -f -",
+    "kubectl --request-timeout=30s --context dev-cluster -n default delete configmap x",
+    "kubectl -n default create configmap x --from-file=check.py",
+    "kubectl scale deploy/x --replicas=0",
+    "kubectl rollout restart deploy/x",
+    "kubectl apply --dry-run=none -f x.yaml",
+    "cat x.yaml | kubectl apply -f -",
+  ],
+  "Terraform state change": [
+    "terraform apply",
+    "terraform -chdir=/abs/path apply plan.out",
+    "terraform destroy -target=x",
+    "tofu state rm module.x",
+    "terraform force-unlock 123",
+  ],
+  "Helm release change": ["helm upgrade --install x chart", "helm uninstall x", "helm rollback x 3"],
+  "AWS change": [
+    "aws s3 rm s3://b/k",
+    "aws s3 rm --recursive s3://b/p",
+    "aws --profile p s3 cp ./f s3://b/k",
+    "aws s3 cp --recursive s3://a s3://b",
+    "aws s3 sync ./dir s3://b/p",
+    "aws iam put-role-policy --role-name r",
+    "aws ec2 terminate-instances --instance-ids i-1",
+    "aws lambda invoke --function-name f out.json",
+  ],
+  "Cloud Storage change": ["gsutil -m rm gs://b/p/**", "gsutil cp ./f gs://b/k", "gsutil iam ch user:x gs://b"],
+  "Google Cloud change": [
+    "gcloud transfer jobs run transferJobs/123",
+    "gcloud storage rm gs://b/k",
+    "gcloud storage cp ./f gs://b/k",
+    "gcloud projects add-iam-policy-binding p --member=x --role=y",
+    "gcloud container clusters resize c --num-nodes=0",
+    "gcloud run deploy svc --image=x",
+    "gcloud services enable storage.googleapis.com",
+  ],
+};
+
+for (const [rule, commands] of Object.entries(infraChanges)) {
+  test(`infra gate: ${rule}`, () => {
+    for (const command of commands) {
+      assert.ok(matchingInfraRules(command).includes(rule), command);
+      assert.ok(!matchingRules(command).includes(rule), `off by default: ${command}`);
+    }
+  });
+}
+
+test("infra reads and dry runs are not gated", () => {
+  for (const command of [
+    "kubectl --context $CTX apply --dry-run=server -f -",
+    "kubectl -n default create configmap x --from-file=check.py --dry-run=server -o name",
+    "kubectl get pods -l run=x -o wide",
+    "kubectl logs job/x | grep delete",
+    "kubectl auth can-i create pods",
+    "kubectl describe deploy x",
+    "terraform plan -destroy -out=p",
+    "terraform -chdir=/abs/path plan",
+    "terraform state list",
+    "helm upgrade --install x chart --dry-run",
+    "helm list -A",
+    "aws sts get-caller-identity",
+    "aws sso login --sso-session example",
+    "aws s3 ls s3://b/",
+    "aws s3 cp s3://b/k -",
+    "aws s3 cp s3://b/k ./local",
+    "aws s3 rm s3://b/k --dryrun",
+    "aws s3api list-objects-v2 --bucket b",
+    "gsutil ls gs://b",
+    "gsutil cp gs://b/k ./local",
+    "gcloud storage ls gs://b",
+    "gcloud storage cp gs://b/k -",
+    "gcloud transfer jobs describe transferJobs/1",
+    "gcloud transfer operations list --job-names=x",
+    "gcloud run services describe svc",
+    "gcloud auth login",
+    "gcloud config set project p",
+  ]) {
+    assert.deepEqual(matchingInfraRules(command), [], command);
+  }
+});
+
 test("unrelated rules are unchanged", () => {
   assert.ok(matchingRules("sudo ls").includes("superuser command"));
   assert.ok(matchingRules("rm -rf build").includes("recursive force delete"));

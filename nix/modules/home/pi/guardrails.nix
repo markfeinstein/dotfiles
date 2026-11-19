@@ -1,3 +1,7 @@
+{
+  # Also gate live Kubernetes, Terraform, Helm, AWS and Google Cloud changes.
+  gateInfraChanges ? false,
+}:
 let
   ghApiCommand = ''(?:^|[;&|(){}\s])gh(?:\s+(?:-[^\s;&|(){}]+|--[^\s;&|(){}]+)(?:[=\s]+(?:"[^"]*"|'[^']*'|[^\s;&|(){}]+))?)*\s+api\b'';
   # The rest of the current command segment, with quoted text treated as opaque.
@@ -17,6 +21,28 @@ let
     inherit pattern description;
     regex = true;
   };
+  # A tool name at the start of a command segment.
+  tool = name: ''(?:^|[;&|(){}\s])${name}(?=\s)'';
+  # A copy or sync whose destination (a later argument) is a bucket URL.
+  copyTo = scheme: ''(?:cp|sync|rsync)(?:\s+-\S+)*\s+[^\s;&|]+(?:\s+[^\s;&|]+)*?\s+${scheme}'';
+  infraRules = [
+    (rule ''${tool "kubectl"}(?!${rest}\s--dry-run(?:=(?:server|client))?${end})(?!${rest}\sauth\s+can-i${end})(?=${rest}\s(?:apply|create|delete|patch|replace|scale|autoscale|edit|label|annotate|drain|cordon|uncordon|taint|expose|run|set|rollout\s+(?:restart|undo|pause|resume))${end})''
+      "Kubernetes change"
+    )
+    (rule ''${tool "(?:terraform|tofu)"}(?=${rest}\s(?:apply|destroy|import|taint|untaint|force-unlock|state\s+(?:rm|mv|push|replace-provider))${end})''
+      "Terraform state change"
+    )
+    (rule ''${tool "helm"}(?!${rest}\s--dry-run${end})(?=${rest}\s(?:install|upgrade|uninstall|delete|rollback)${end})'' "Helm release change")
+    (rule ''${tool "aws"}(?!${rest}\s--dryrun${end})(?=${rest}\s(?:s3\s+(?:rm|mv|rb)${end}|s3\s+${copyTo "s3://"}|lambda\s+invoke${end}|(?:delete|terminate|put|update|create|remove|modify|attach|detach|run|start|stop|reboot|invoke|deregister|register|revoke|authorize|reset|restore|replace|cancel|send|publish|tag|untag)-[a-z0-9-]+${end}))''
+      "AWS change"
+    )
+    (rule ''${tool "gsutil"}(?=${rest}\s(?:(?:rm|mv|rb|setmeta)${end}|${copyTo "gs://"}|(?:acl|defacl|iam|lifecycle|versioning|retention|label|cors|web|notification|kms|ubla|pap|requesterpays|logging|autoclass|rpo)\s+(?:set|ch)${end}))''
+      "Cloud Storage change"
+    )
+    (rule ''${tool "gcloud"}(?=${rest}\s(?:(?:delete|undelete|create|update|patch|deploy|apply|cancel|resize|start|stop|reset|rm|mv|import|enable|disable|rollback|promote|set-iam-policy|add-iam-policy-binding|remove-iam-policy-binding)${end}|jobs\s+(?:run|execute)${end}|${copyTo "gs://"}))''
+      "Google Cloud change"
+    )
+  ];
 in
 {
   applyBuiltinDefaults = true;
@@ -140,9 +166,10 @@ in
         (rule ''${gitCommand ''worktree\s+remove''}(?=${rest}\s(?:--force${end}|${shortFlag "f"}))''
           "Git worktree force removal"
         )
-        (rule ''(?:^|[;&|(){}\s])wt(?=\s)(?=${rest}\s(?:--(?:force|force-delete|clobber)${end}|${shortFlag "fD"}))''
+        (rule ''${tool "wt"}(?=${rest}\s(?:--(?:force|force-delete|clobber)${end}|${shortFlag "fD"}))''
           "Worktrunk force flag"
         )
-      ];
+      ]
+      ++ (if gateInfraChanges then infraRules else [ ]);
   };
 }

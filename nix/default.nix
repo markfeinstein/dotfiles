@@ -261,7 +261,12 @@ let
             touch "$out"
           '';
           guardrails-rules = pkgs.runCommand "guardrails-rules-check" { nativeBuildInputs = [ pkgs.nodejs ]; } ''
-            GUARDRAILS_RULES=${pkgs.writeText "guardrails.json" (builtins.toJSON (import ./modules/home/pi/guardrails.nix))} \
+            GUARDRAILS_RULES=${pkgs.writeText "guardrails.json" (builtins.toJSON (import ./modules/home/pi/guardrails.nix { }))} \
+            GUARDRAILS_RULES_INFRA=${
+              pkgs.writeText "guardrails-infra.json" (
+                builtins.toJSON (import ./modules/home/pi/guardrails.nix { gateInfraChanges = true; })
+              )
+            } \
               node --test ${./tests/guardrails-rules.test.cjs}
             touch "$out"
           '';
