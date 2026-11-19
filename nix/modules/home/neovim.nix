@@ -6,6 +6,22 @@
 }:
 let
   cfg = config.dotfiles.neovim;
+  jsonFormat = pkgs.formats.json { };
+
+  # Periodic Notes (desktop) uses Moment tokens; obsidian.nvim uses strftime.
+  # Only these tokens are translated, so other daily formats fail the assertion.
+  momentDailyFormat =
+    lib.replaceStrings
+      [ "%Y" "%m" "%B" "%d" "%A" ]
+      [ "YYYY" "MM" "MMMM" "DD" "dddd" ]
+      cfg.obsidian.dailyNotes.dateFormat;
+  periodicDaily = cfg.obsidian.periodic.settings.daily or { };
+  periodicDailyMatches =
+    !(periodicDaily.enabled or false)
+    || (
+      (periodicDaily.folder or null) == cfg.obsidian.dailyNotes.folder
+      && (periodicDaily.format or null) == momentDailyFormat
+    );
 
   baseTreesitterGrammars = [
     "bash"
@@ -221,6 +237,10 @@ let
       enabled = cfg.obsidian.references.enable;
       people_folder = cfg.obsidian.references.peopleFolder;
     };
+    periodic = {
+      enabled = cfg.obsidian.periodic.enable;
+      inherit (cfg.obsidian.periodic) settings;
+    };
     autosave = {
       enabled = cfg.obsidian.autosave.enable;
       interval_ms = cfg.obsidian.autosave.intervalSeconds * 1000;
@@ -339,6 +359,57 @@ in
         };
       };
 
+      periodic = {
+        enable = lib.mkEnableOption "weekly, monthly, quarterly, and yearly Obsidian note commands";
+        settings = lib.mkOption {
+          inherit (jsonFormat) type;
+          default =
+            let
+              journals = cfg.obsidian.dailyNotes.folder;
+              template = name: "${cfg.obsidian.templates.folder}/${name}";
+            in
+            {
+              daily = {
+                enabled = true;
+                folder = journals;
+                format = momentDailyFormat;
+                template = template "Daily Note";
+              };
+              weekly = {
+                enabled = true;
+                folder = "${journals}/Weekly";
+                format = "GGGG-[W]WW";
+                template = template "Weekly Review";
+              };
+              monthly = {
+                enabled = true;
+                folder = "${journals}/Monthly";
+                format = "YYYY-MM";
+                template = template "Monthly Review";
+              };
+              quarterly = {
+                enabled = true;
+                folder = "${journals}/Quarterly";
+                format = "YYYY-[Q]Q";
+                template = template "Quarterly Review";
+              };
+              yearly = {
+                enabled = true;
+                folder = "${journals}/Annual";
+                format = "YYYY";
+                template = template "Annual Review";
+              };
+            };
+          defaultText = lib.literalMD "weekly/monthly/quarterly/yearly folders under the daily-notes folder, with `<Interval> Review` templates";
+          description = ''
+            Obsidian Periodic Notes plugin settings (its `data.json`): vault-relative
+            `folder`, Moment `format`, and extensionless `template` per interval.
+            Use the same object as the desktop plugin, for example with
+            `lib.importJSON`, so both editors create identical paths.
+          '';
+        };
+      };
+
       autosave = {
         enable =
           lib.mkEnableOption "periodic writes of modified Markdown buffers in configured Obsidian vaults"
@@ -399,6 +470,10 @@ in
           cfg.obsidian.references.peopleFolder
         ];
         message = "Obsidian capture and reference paths must be vault-relative and may not contain '..' components";
+      }
+      {
+        assertion = !cfg.obsidian.periodic.enable || periodicDailyMatches;
+        message = "dotfiles.neovim.obsidian.periodic.settings.daily must use the dailyNotes folder and the Moment equivalent of dailyNotes.dateFormat";
       }
     ];
 

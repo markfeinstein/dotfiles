@@ -13,15 +13,26 @@ if state == "disabled" then
 	assert(has_workspaces, "disabled test profile should retain its configured workspace")
 	assert_equal((profile.capture or {}).enabled, false, "capture flag")
 	assert_equal((profile.references or {}).enabled, false, "references flag")
+	assert_equal((profile.periodic or {}).enabled, false, "periodic flag")
 elseif state == "no-workspace" then
 	assert(not has_workspaces, "no-workspace test profile should have no workspaces")
 	assert_equal((profile.capture or {}).enabled, true, "capture flag")
 	assert_equal((profile.references or {}).enabled, true, "references flag")
+	assert_equal((profile.periodic or {}).enabled, true, "periodic flag")
 else
 	error("unknown expected state: " .. state)
 end
 
-for _, name in ipairs({ "ObsidianQuestion", "ObsidianAnswer", "ObsidianLog" }) do
+for _, name in ipairs({
+	"ObsidianQuestion",
+	"ObsidianAnswer",
+	"ObsidianLog",
+	"ObsidianPeriodic",
+	"ObsidianWeekly",
+	"ObsidianMonthly",
+	"ObsidianQuarterly",
+	"ObsidianYearly",
+}) do
 	assert(commands[name] == nil, name .. " must not be registered")
 end
 for _, lhs in ipairs({ "<leader>oq", "<leader>oa", "<leader>ol", "<leader>mq", "<leader>ma", "<leader>ml" }) do
