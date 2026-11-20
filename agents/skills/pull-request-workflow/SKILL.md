@@ -1,6 +1,6 @@
 ---
 name: pull-request-workflow
-description: Prepares, reviews, updates, and publishes GitHub pull requests using repository requirements and evidence-backed conventions. Use for PR titles, descriptions, readiness checks, review feedback, or authorized PR lifecycle actions; not standalone code implementation or deployment.
+description: Prepares, reviews, updates, and publishes GitHub pull requests using repository requirements and evidence-backed conventions. Use for PR titles, descriptions, readiness checks, review feedback, or authorized PR lifecycle actions; not standalone code implementation or deployment. When a code-review skill is installed, it owns finding defects in a PR's diff.
 ---
 
 # Pull Request Workflow
@@ -99,9 +99,12 @@ in the draft PR.
 
 ## 4. Review and check readiness
 
-For review requests, lead with actionable findings by severity, tied to files,
-lines, or PR evidence; then unresolved questions and verification gaps.
-Do not modify code, post comments, or submit a formal review unless requested.
+For review requests, load `code-review` when it is installed and follow it for
+scope, findings, verdicts, and comment drafts; this skill supplies the PR refs,
+remote state, and readiness gates it asks for. Without it, lead with actionable
+findings by severity, tied to files, lines, or PR evidence; then unresolved
+questions and verification gaps. Do not modify code, post comments, or submit a
+formal review unless requested.
 
 Before delivery or publication, check:
 
