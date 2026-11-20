@@ -61,7 +61,19 @@ with tempfile.TemporaryDirectory() as tmp:
     raw_git(repo, "commit", "-q", "-a", "-m", "second", env=env)
     raw_git(repo, "branch", "feature/one", env=env)
     raw_git(repo, "tag", "v1", env=env)
+    subprocess.run(
+        ["git", "clone", "-q", "--bare", str(repo), str(root / "remote.git")], env=env, check=True, capture_output=True
+    )
     raw_git(repo, "remote", "add", "origin", str(root / "remote.git"), env=env)
+    # Local config that would run a program during ls-remote; git-readonly must override it.
+    marker = root / "ran-a-program"
+    raw_git(repo, "config", "--local", "remote.origin.uploadpack", f"touch {marker}", env=env)
+    raw_git(repo, "config", "--local", "core.sshCommand", f"touch {marker}", env=env)
+    raw_git(repo, "config", "--local", "credential.helper", f"!touch {marker}", env=env)
+    raw_git(repo, "config", "--local", "protocol.ext.allow", "always", env=env)
+    raw_git(repo, "remote", "add", "extremote", f"ext::touch {marker}", env=env)
+    raw_git(repo, "config", "--local", f"url.ext::touch {marker} #.insteadOf", "https://sneaky.example/", env=env)
+    raw_git(repo, "remote", "add", "sneaky", "https://sneaky.example/repo.git", env=env)
     raw_git(repo, "update-ref", "refs/remotes/origin/main", "HEAD", env=env)
     raw_git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main", env=env)
     raw_git(repo, "config", "--local", "test.key", "value", env=env)
@@ -145,6 +157,13 @@ with tempfile.TemporaryDirectory() as tmp:
         ["diff", "-Oorderfile.txt", "HEAD~1", "HEAD"],
         ["log", "-1", "-Oorderfile.txt", "--stat"],
         ["show", "-Oorderfile.txt", "--stat", "HEAD"],
+        ["ls-remote", "origin"],
+        ["ls-remote", "--heads", "origin"],
+        ["ls-remote", "-h", "-q", "origin", "main"],
+        ["ls-remote", "--tags", "--refs", "origin", "v1"],
+        ["ls-remote", "--exit-code", "origin", "main"],
+        ["ls-remote", "--symref", "origin", "HEAD"],
+        ["ls-remote", "--sort=refname", "origin"],
     ]
     rejected: list[list[str]] = [
         ["config", "set", "test.key", "other"],
@@ -208,7 +227,18 @@ with tempfile.TemporaryDirectory() as tmp:
         ["grep", "--open-files-in-pager=true", "alpha"],
         ["fetch"],
         ["fetch", "--dry-run"],
-        ["ls-remote", "origin"],
+        ["ls-remote"],
+        ["ls-remote", "--heads"],
+        ["ls-remote", "nosuchremote"],
+        ["ls-remote", str(root / "remote.git")],
+        ["ls-remote", "https://example.com/repo.git"],
+        ["ls-remote", f"--upload-pack=touch {marker}", "origin"],
+        ["ls-remote", "-u", f"touch {marker}", "origin"],
+        ["ls-remote", "--server-option=x", "origin"],
+        ["ls-remote", "-o", "x", "origin"],
+        ["ls-remote", "--get-url", "origin"],
+        ["ls-remote", "extremote"],
+        ["ls-remote", "sneaky"],
         ["merge-tree", "--write-tree", "HEAD", "feature/one"],
         ["log", "--output=out.txt"],
         ["log", "-1", "--format=%an;%ae"],
@@ -261,6 +291,12 @@ with tempfile.TemporaryDirectory() as tmp:
         "symbolic-ref reads a non-HEAD ref",
         output(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"]) == "origin/main\n",
     )
+    expect(
+        "ls-remote lists the remote's main branch",
+        f"{head}\trefs/heads/main" in output(["ls-remote", "--heads", "origin"]),
+        output(["ls-remote", "--heads", "origin"]),
+    )
+    expect("ls-remote never runs a program from local config", not marker.exists())
     expect("log keeps < and > in the format", output(["log", "-1", "--format=%an <%ae>"]) == "Test Author <author@example.com>\n")
 
     git_dir_flag = run(["--git-dir", str(git_dir), "rev-list", "--count", "HEAD"], env)

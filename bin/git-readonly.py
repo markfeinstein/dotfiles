@@ -4,11 +4,12 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 from typing import NoReturn
 
-VERSION = "2"
+VERSION = "3"
 FORBIDDEN_FRAGMENTS = ("\0", "\n", "\r", ";", "&", "`", "$(")
 FORBIDDEN_OPTIONS = (
     "--ext-diff",
@@ -90,6 +91,23 @@ CONFIG_VALUE_OPTIONS = ("--default", "--file", "--type", "-f")
 CONFIG_GET_SUBCOMMAND_FLAGS = ("--all", "--fixed-value", "--regexp", "--show-names")
 CONFIG_GET_SUBCOMMAND_VALUE_OPTIONS = ("--url", "--value")
 TAG_READ_OPTIONS = ("--contains", "--format", "--list", "--merged", "--no-contains", "--no-merged", "--points-at", "-l")
+LS_REMOTE_FLAGS = (
+    "--branches",
+    "--exit-code",
+    "--heads",
+    "--quiet",
+    "--refs",
+    "--symref",
+    "--tags",
+    "-b",
+    "-h",
+    "-q",
+    "-t",
+)
+# https, ssh, scp-style user@host:path, file, or an absolute local path.
+LS_REMOTE_URL = re.compile(r"^(?:https://|ssh://|file://|/)|^[\w.-]+@[\w.-]+:")
+LS_REMOTE_TIMEOUT_SECONDS = 60
+LS_REMOTE_TIMEOUT_EXIT = 124
 
 
 HELP = """\
@@ -122,12 +140,19 @@ Allowed commands:
   reflog                   bare, show, or exists REF
   remote                   bare, -v, or get-url NAME
   stash                    list or show
+  ls-remote                REMOTE [PATTERN...], where REMOTE is a configured remote
+                           name, not a URL; options --heads/-h, --branches/-b,
+                           --tags/-t, --refs, --symref, --quiet/-q, --exit-code,
+                           --sort=KEY. Local config that runs programs (ssh
+                           command, credential helpers, askpass, upload-pack) is
+                           overridden, only file, https and ssh transports are
+                           allowed, and the command stops after 60 seconds.
   symbolic-ref             read one ref (-q, --quiet, --short); two arguments,
                            -d, --delete and -m are rejected
   tag                      list only (--list/-l, --contains, --merged, ...)
   worktree                 list
 
-Blocked: fetch, ls-remote (network), merge-tree (writes objects), and every other
+Blocked: fetch (writes refs and objects), merge-tree (writes objects), and every other
 command. Blocked options: --ext-diff, --open-files-in-pager, --output, --paginate,
 --textconv, and for grep every short -O form (-O, -Ocmd, -O cmd, -nOcmd), which runs
 a pager command (diff, log and show may still use -O<orderfile>). Arguments may not contain NUL, newline, CR, backtick, $( , ; or &.
@@ -235,6 +260,40 @@ def reject_grep_pager_option(args: list[str]) -> None:
                 break
 
 
+def ls_remote_name(args: list[str]) -> str:
+    """Accept ls-remote listing options and return the remote name, the first positional."""
+    positionals: list[str] = []
+    for value in args:
+        if value.startswith("-"):
+            if value in LS_REMOTE_FLAGS or value.startswith("--sort="):
+                continue
+            fail(f"ls-remote option is not in the read-only contract: {value}")
+        positionals.append(value)
+    if not positionals:
+        fail("ls-remote needs a configured remote name")
+    return positionals[0]
+
+
+def ls_remote_config_args() -> list[str]:
+    """Override local config that would run a program while contacting the remote.
+
+    remote.NAME.uploadpack keeps its first value, so -c cannot replace it; main()
+    passes --upload-pack on the command line instead.
+    """
+    overrides = (
+        "core.askPass=",
+        "core.sshCommand=ssh",
+        "credential.helper=",
+        "protocol.allow=never",
+        "protocol.ext.allow=never",
+        "protocol.git.allow=never",
+        "protocol.file.allow=always",
+        "protocol.https.allow=always",
+        "protocol.ssh.allow=always",
+    )
+    return [arg for override in overrides for arg in ("-c", override)]
+
+
 def validate_subcommand(command: str, args: list[str]) -> None:
     for value in args:
         reject_unsafe_token(value)
@@ -285,6 +344,9 @@ def validate_subcommand(command: str, args: list[str]) -> None:
         fail("reflog is limited to show and exists")
     if command == "stash" and args and args[0] in {"list", "show"}:
         return
+    if command == "ls-remote":
+        ls_remote_name(args)
+        return
     if command == "symbolic-ref":
         values = [value for value in args if value not in SYMBOLIC_REF_READ_OPTIONS]
         if len(values) == 1 and not values[0].startswith("-"):
@@ -332,10 +394,7 @@ def main() -> int:
         # Config reads must report real values, so only other commands get the overrides.
         git_args.extend(SAFETY_CONFIG_ARGS)
     git_args.extend(global_args)
-    git_args.append(command)
-    if command in DIFF_COMMANDS:
-        git_args.extend(["--no-ext-diff", "--no-textconv"])
-    git_args.extend(command_args)
+    remote = ls_remote_name(command_args) if command == "ls-remote" else None
 
     env = os.environ.copy()
     for name in list(env):
@@ -351,7 +410,37 @@ def main() -> int:
         GIT_PAGER="cat",
         GIT_TERMINAL_PROMPT="0",
     )
-    return subprocess.run(git_args, env=env, check=False).returncode
+
+    if remote is not None:
+        # Only a configured remote name: a URL argument would bypass the overrides below.
+        listed = subprocess.run(
+            [*git_args, "remote"], env=env, check=False, capture_output=True, text=True
+        )
+        if remote not in listed.stdout.split():
+            fail(f"ls-remote needs a configured remote name, not {remote!r}")
+        url = subprocess.run(
+            [*git_args, "remote", "get-url", remote], env=env, check=False, capture_output=True, text=True
+        ).stdout.strip()
+        if not LS_REMOTE_URL.match(url):
+            fail(f"ls-remote allows only https, ssh and local remotes, not {url!r}")
+        git_args[1:1] = ls_remote_config_args()
+    git_args.append(command)
+    if remote is not None:
+        git_args.append("--upload-pack=git-upload-pack")
+    if command in DIFF_COMMANDS:
+        git_args.extend(["--no-ext-diff", "--no-textconv"])
+    git_args.extend(command_args)
+
+    try:
+        return subprocess.run(
+            git_args,
+            env=env,
+            check=False,
+            timeout=LS_REMOTE_TIMEOUT_SECONDS if remote is not None else None,
+        ).returncode
+    except subprocess.TimeoutExpired:
+        print(f"git-readonly: ls-remote stopped after {LS_REMOTE_TIMEOUT_SECONDS} seconds", file=sys.stderr)
+        return LS_REMOTE_TIMEOUT_EXIT
 
 
 if __name__ == "__main__":
