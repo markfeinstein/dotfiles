@@ -41,6 +41,11 @@ report. Apply these rules when writing new text and when revising a draft.
 
 Keep every fact and number. Cut formality, not information.
 
+- Ask each reader only about their own area. Leave out questions and side
+  topics that belong to someone else or to another task.
+- Don't name the user as owner of their own ticket or work; it's already
+  theirs.
+
 ## Process
 
 - Show the user only the draft and "Post it?". Do not explain stylistic
