@@ -8,6 +8,8 @@
 
 ## Reporting
 
+- Lead with the answer or the changes the user asked for. Leave out minor
+  items, background, and routine steps unless the user asks for them.
 - Give numbered options or next steps one plain sentence each: what it does
   and why. Name the ticket, PR, or file it concerns and mark the recommended one.
 - When reporting that checks or tests ran, include the command and the decisive
