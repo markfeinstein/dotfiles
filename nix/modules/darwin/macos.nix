@@ -183,7 +183,7 @@ in
           "com.apple.AppleMultitouchTrackpad" = externalTrackpadDefaults;
           "com.apple.driver.AppleBluetoothMultitouch.trackpad" = externalTrackpadDefaults;
           "com.apple.dock" = {
-            tilesize = 36;
+            tilesize = 32;
             orientation = "left";
             autohide = true;
             "autohide-delay" = 0.0;

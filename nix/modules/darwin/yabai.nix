@@ -345,8 +345,7 @@ let
       focus_follows_mouse = "off";
       mouse_follows_focus = false;
     };
-    # Fixed-index assignments are opt-in because profile outputs are not tied
-    # to a machine's existing native Space count.
+    # Every managed Mac uses the fixed nine-Space layout.
     spaces = lib.optionals config.dotfiles.yabai.fixedSpaceTargets [
       {
         match.index = 2;
@@ -427,8 +426,8 @@ in
 
     fixedSpaceTargets = lib.mkOption {
       type = lib.types.bool;
-      default = false;
-      description = "Enable fixed Space 1-9 assignments only on machines with those native Spaces";
+      default = true;
+      description = "Enable the common fixed Space 1-9 assignments";
     };
 
     applicationRules = lib.mkOption {
