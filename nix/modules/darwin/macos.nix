@@ -278,6 +278,7 @@ in
 
           /usr/bin/pmset -b displaysleep 10
           /usr/bin/pmset -c displaysleep 30
+          /usr/bin/pmset -c disablesleep 1
 
           ${activationHelpers.configureMacosSymbolicHotKeys {
             inherit disabledMacosSymbolicHotKeysArgs enabledMacosSymbolicHotKeysArgs;
