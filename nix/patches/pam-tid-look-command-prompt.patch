@@ -1,0 +1,21 @@
+--- a/src/pam_tid_look.m
++++ b/src/pam_tid_look.m
+@@ -897,2 +897,7 @@
++/* Keep the quoted command separate from the text SecurityAgent appends. */
++NSString *tid_look_command_prompt(int argc, char **argv) {
++    return [command_line(argc, argv) stringByAppendingString:@"\n\n"];
++}
++
+ static int authenticate(pam_handle_t *pamh, int argc, const char **argv) {
+     unsigned timeout = tid_look_timeout(argc, argv);
+@@ -940,8 +945,4 @@
+-    /* Read here, as root, which can read sudoers. */
+-    char **env = tid_look_policy_uses_path("/etc/sudo.conf", "/etc/sudoers") ? tid_look_exec_environment() : NULL;
+-    const char *prompt = tid_look_build_prompt(*_NSGetArgc(), *_NSGetArgv(), env, account->pw_dir,
+-        account->pw_uid, account->pw_gid).UTF8String;
+-    free(env);
+-    OSStatus status = tid_look_authorize("com.apple.security.sudo", prompt, timeout);
++    NSString *prompt = tid_look_command_prompt(*_NSGetArgc(), *_NSGetArgv());
++    OSStatus status = tid_look_authorize("com.apple.security.sudo", prompt.UTF8String, timeout);
+     os_log_debug(tid_look_log(), "authorization result: %d", (int)status);
+     return status == errAuthorizationSuccess ? PAM_SUCCESS : PAM_AUTH_ERR;
