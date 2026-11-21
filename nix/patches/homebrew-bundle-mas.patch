@@ -1,0 +1,9 @@
+diff --git a/Library/Homebrew/bundle/extensions/mac_app_store.rb b/Library/Homebrew/bundle/extensions/mac_app_store.rb
+--- a/Library/Homebrew/bundle/extensions/mac_app_store.rb
++++ b/Library/Homebrew/bundle/extensions/mac_app_store.rb
+@@ -19,0 +20,5 @@
++        sig { override.returns(T.nilable(Pathname)) }
++        def package_manager_executable
++          Pathname.new("@mas@")
++        end
++

@@ -4,6 +4,7 @@
   nix-darwin,
   home-manager,
   nix-homebrew,
+  brew-src,
   neovim-nightly-overlay,
   rex-picker,
   yabai,
@@ -82,13 +83,31 @@ let
       ./modules/profile.nix
       home-manager.darwinModules.home-manager
       nix-homebrew.darwinModules.nix-homebrew
-      ({ config, ... }: {
-        nix-homebrew = {
-          enable = true;
-          user = config.system.primaryUser;
-          autoMigrate = true;
-        };
-      })
+      (
+        {
+          config,
+          lib,
+          pkgs,
+          ...
+        }:
+        {
+          nix-homebrew = {
+            enable = true;
+            user = config.system.primaryUser;
+            autoMigrate = true;
+            # The Homebrew launcher filters nix-darwin's mas from Bundle's PATH.
+            package = pkgs.applyPatches {
+              name = "brew-bundle-mas";
+              src = brew-src;
+              patches = [
+                (pkgs.replaceVars ./patches/homebrew-bundle-mas.patch {
+                  mas = lib.getExe pkgs.mas;
+                })
+              ];
+            };
+          };
+        }
+      )
     ];
     nixpkgs = {
       hostPlatform = "aarch64-darwin";
