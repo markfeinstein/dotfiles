@@ -77,6 +77,8 @@ in
         autoUpdate = true;
         upgrade = true;
         cleanup = "uninstall";
+        # Set PATH after sudo so Homebrew Bundle can find the mas executable.
+        extraEnv.PATH = "${config.homebrew.prefix}/bin:${lib.makeBinPath [ pkgs.mas ]}:/usr/bin:/bin:/usr/sbin:/sbin";
       };
     };
 
