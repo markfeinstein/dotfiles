@@ -109,7 +109,6 @@ let
     dotfiles = {
       openlogi.enable = true;
       rex.tailnetEnable = true;
-      yabai.fixedSpaceTargets = true;
     };
   };
   darwinHosts = {
