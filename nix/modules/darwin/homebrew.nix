@@ -53,7 +53,7 @@ in
       default = config.profile.name == "personal";
       description = "Whether Homebrew installs the personal OpenLogi app and agent";
     };
-    masApps.enable = lib.mkEnableOption "the reviewed personal Mac App Store inventory";
+    masApps.enable = lib.mkEnableOption "the additional reviewed personal Mac App Store inventory";
   };
 
   config = {
@@ -66,8 +66,10 @@ in
         ++ lib.optionals cfg.applications.enable applicationCasks
         ++ lib.optionals cfg.printing.enable printingCasks
         ++ lib.optional config.dotfiles.openlogi.enable "openlogi";
-      masApps = lib.mkIf config.dotfiles.masApps.enable {
+      masApps = {
         "1Password for Safari" = 1569813296;
+      }
+      // lib.optionalAttrs config.dotfiles.masApps.enable {
         "Obsidian Web Clipper" = 6720708363;
         "TestFlight" = 899247664;
       };
@@ -75,6 +77,8 @@ in
         autoUpdate = true;
         upgrade = true;
         cleanup = "uninstall";
+        # Set PATH after sudo so Homebrew Bundle can find the mas executable.
+        extraEnv.PATH = "${config.homebrew.prefix}/bin:${lib.makeBinPath [ pkgs.mas ]}:/usr/bin:/bin:/usr/sbin:/sbin";
       };
     };
 
