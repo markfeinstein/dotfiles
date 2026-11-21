@@ -7,6 +7,8 @@
 let
   cfg = config.dotfiles.homebrew;
   primaryUser = config.system.primaryUser;
+  onePasswordSafariAppId = "1569813296";
+  onePasswordSafariApp = "/Applications/1Password for Safari.app";
   orcaSlicerCask = "orcaslicer@nightly";
   orcaSlicerBaseCask = builtins.head (lib.splitString "@" orcaSlicerCask);
   commonCasks = [
@@ -53,7 +55,7 @@ in
       default = config.profile.name == "personal";
       description = "Whether Homebrew installs the personal OpenLogi app and agent";
     };
-    masApps.enable = lib.mkEnableOption "the additional reviewed personal Mac App Store inventory";
+    masApps.enable = lib.mkEnableOption "the reviewed personal Mac App Store inventory";
   };
 
   config = {
@@ -66,10 +68,7 @@ in
         ++ lib.optionals cfg.applications.enable applicationCasks
         ++ lib.optionals cfg.printing.enable printingCasks
         ++ lib.optional config.dotfiles.openlogi.enable "openlogi";
-      masApps = {
-        "1Password for Safari" = 1569813296;
-      }
-      // lib.optionalAttrs config.dotfiles.masApps.enable {
+      masApps = lib.mkIf config.dotfiles.masApps.enable {
         "Obsidian Web Clipper" = 6720708363;
         "TestFlight" = 899247664;
       };
@@ -109,6 +108,19 @@ in
         plugins = [ pkgs.vimPlugins.vim-openscad ];
       };
     };
+
+    system.activationScripts.mas.text = ''
+      if [ ! -d ${lib.escapeShellArg onePasswordSafariApp} ]; then
+        echo >&2 "installing 1Password for Safari..."
+        primary_uid="$(/usr/bin/id -u -- ${lib.escapeShellArg primaryUser})"
+        if ! /bin/launchctl asuser "$primary_uid" \
+          /usr/bin/sudo --user=${lib.escapeShellArg primaryUser} --set-home -- \
+          ${lib.getExe pkgs.mas} get ${onePasswordSafariAppId}; then
+          echo >&2 "warning: could not install 1Password for Safari automatically"
+          echo >&2 "Install it once from https://apps.apple.com/app/id${onePasswordSafariAppId}, then rebuild again."
+        fi
+      fi
+    '';
 
     system.activationScripts.preActivation.text = lib.mkIf cfg.printing.enable ''
       stable_cask_receipt=${lib.escapeShellArg "${config.homebrew.prefix}/Caskroom/${orcaSlicerBaseCask}"}
