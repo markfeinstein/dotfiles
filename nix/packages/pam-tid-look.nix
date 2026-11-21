@@ -18,6 +18,8 @@ stdenvNoCC.mkDerivation {
     hash = "sha256-M07Y6rwNxXsZWv6Tjk/khKRn53fUTbG8ytRVttwdbpI=";
   };
 
+  patches = [ ../patches/pam-tid-look-command-prompt.patch ];
+
   nativeBuildInputs = [
     llvmPackages.clang-unwrapped
     bintools-unwrapped
@@ -31,6 +33,17 @@ stdenvNoCC.mkDerivation {
     make "CC=clang -isysroot ${apple-sdk.src}" "ARCHS=-arch arm64e -arch arm64" \
       build/pam_tid_look.so build/pam_tid_look_probe
     runHook postBuild
+  '';
+
+  doCheck = true;
+  checkPhase = ''
+    runHook preCheck
+    clang -isysroot ${apple-sdk.src} -mmacosx-version-min=14.0 -fobjc-arc \
+      src/pam_tid_look.m ${../tests/sudo-command-prompt.m} -o build/check-prompt \
+      -framework Foundation -framework LocalAuthentication -framework Security -lpam -licucore
+    build/check-prompt 'sudo -k ls' -k ls
+    build/check-prompt "sudo cat 'release notes.txt'" cat 'release notes.txt'
+    runHook postCheck
   '';
 
   # Let nix-darwin own sudo_local; never run the upstream system installer.

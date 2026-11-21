@@ -44,7 +44,8 @@ installed release. Downstream modules may override it deliberately. The numeric
 nix-darwin `system.stateVersion` is a separate platform contract.
 
 On personal Macs, `sudo` (including during `rebuild`) gives Touch ID or Apple
-Watch 30 seconds. If the dialog is unanswered, [pam_tid_look](https://github.com/samuelb/pam_tid_look/tree/v0.1.0)
+Watch 30 seconds. The dialog shows only the command above Apple’s standard
+message. If it’s unanswered, [pam_tid_look](https://github.com/samuelb/pam_tid_look/tree/v0.1.0)
 dismisses it and macOS continues to the usual terminal password prompt. Test in
 an interactive terminal with `sudo -k -v`: leave the dialog unanswered and
 look for `Password:`. No privileged command runs. Set
