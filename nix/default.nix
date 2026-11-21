@@ -464,6 +464,20 @@ let
           darwin-personal = darwinConfigurations.personal.config.system.build.toplevel;
           darwin-work = darwinConfigurations.work.config.system.build.toplevel;
           darwin-m5 = darwinConfigurations.m5.config.system.build.toplevel;
+          darwin-sudo-biometric-fallback =
+            let
+              sudoLocal =
+                profile: darwinConfigurations.${profile}.config.environment.etc."pam.d/sudo_local".source;
+            in
+            m5Pkgs.runCommand "sudo-biometric-fallback-check" { } ''
+              rules() { awk 'NF && $1 !~ /^#/ { $1=$1; print }' "$1"; }
+              for policy in ${sudoLocal "personal"} ${sudoLocal "m5"}; do
+                diff -u <(echo "auth sufficient ${m5Pkgs.pam-tid-look}/lib/pam/pam_tid_look.so timeout=30") \
+                  <(rules "$policy")
+              done
+              diff -u <(echo 'auth sufficient pam_tid.so') <(rules ${sudoLocal "work"})
+              touch "$out"
+            '';
           yabai-signed-app = m5Pkgs.runCommand "yabai-signed-app-check" { } ''
             app=${m5YabaiPackage}/Applications/Yabai.app
             executable="$app/Contents/MacOS/yabai"
