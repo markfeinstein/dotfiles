@@ -11,7 +11,7 @@ in
 {
   options.dotfiles.sudo.biometricTimeoutSeconds = lib.mkOption {
     type = lib.types.nullOr (lib.types.ints.between 1 3600);
-    default = if config.profile.name == "personal" then 30 else null;
+    default = 30;
     description = "Seconds before sudo dismisses an unanswered biometric dialog. Null uses Apple's untimed Touch ID module.";
   };
 

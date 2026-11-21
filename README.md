@@ -43,15 +43,14 @@ a compatibility contract, not a value that should automatically follow the
 installed release. Downstream modules may override it deliberately. The numeric
 nix-darwin `system.stateVersion` is a separate platform contract.
 
-On personal Macs, `sudo` (including during `rebuild`) gives Touch ID or Apple
-Watch 30 seconds. The dialog shows only the command above Apple’s standard
-message. If it’s unanswered, [pam_tid_look](https://github.com/samuelb/pam_tid_look/tree/v0.1.0)
+On personal and work Macs, `sudo` gives Touch ID or Apple Watch 30 seconds,
+including during `rebuild`. The dialog shows only the command above Apple’s
+standard message. If it’s unanswered, [pam_tid_look](https://github.com/samuelb/pam_tid_look/tree/v0.1.0)
 dismisses it and macOS continues to the usual terminal password prompt. Test in
 an interactive terminal with `sudo -k -v`: leave the dialog unanswered and
 look for `Password:`. No privileged command runs. Set
-`dotfiles.sudo.biometricTimeoutSeconds = null;` to restore Apple's untimed
-module, which remains the default on work Macs. This does not change SSH or
-lock-screen authentication.
+`dotfiles.sudo.biometricTimeoutSeconds = null;` on a host to restore Apple’s
+untimed prompt there. SSH and lock-screen authentication are unchanged.
 
 On Darwin, the common profile enables the 1Password SSH agent by default. A
 profile can restrict and order the keys exposed by the agent with selectors for
