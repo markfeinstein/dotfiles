@@ -366,6 +366,7 @@ let
     ];
     keyboard = yabaiKeyboard;
     rules = [
+      (unmanagedRule "alfred" "Alfred")
       (unmanagedRule "bambu-studio-float" "Bambu Studio")
       (unmanagedRule "system-settings" "System Settings")
       (unmanagedRule "finder" "Finder")
