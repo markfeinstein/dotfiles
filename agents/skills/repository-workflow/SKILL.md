@@ -50,7 +50,8 @@ cleanup. Push, activation, and deployment always need an explicit request.
 6. **Fold corrections deliberately.** Amend `HEAD` when it owns the correction.
    For an earlier task-owned unpublished commit, use a targeted `fixup!` commit
    and autosquash once before delivery. Do not rewrite work owned by another
-   writer or already published or integrated.
+   writer or already published or integrated, except for the isolated candidate
+   described below.
 7. **Review the completed series.** Inspect every task commit and the full diff
    from the recorded base. In Worktrunk repositories, prefer
    `wt -C SOURCE_WORKTREE step diff TARGET_BRANCH` for the net integration diff.
@@ -67,6 +68,17 @@ cleanup. Push, activation, and deployment always need an explicit request.
 A delegated writer stops at a clean, tested, committed source worktree and
 reports its path, branch, base, commit range, changed files, checks, and risks.
 It does not integrate or clean up unless assigned that exact scope.
+
+## Isolated History-Rewrite Candidates
+
+Only when the user explicitly requests a history-rewrite candidate, a new
+task-owned branch and worktree may rewrite copies of published or integrated
+commits. Record the original tip before starting; do not move or rewrite any
+pre-existing branch, tag, or remote ref, or alter another writer's worktree.
+Before presenting the candidate, verify that its final Git tree is identical to
+the recorded original tip and report the old and new commit counts and any
+verification failures. A candidate does not authorize replacing an existing
+branch, integration, cleanup, publication, or force-pushing.
 
 ## Safety Boundaries
 
