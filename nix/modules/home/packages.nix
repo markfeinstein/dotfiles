@@ -26,6 +26,7 @@ in
     pkgs.claude-code
     pkgs.gitleaks
     pkgs.markdownlint-cli
+    pkgs.opencode
     pkgs.openssl
     pkgs.tokei
     pkgs.tree
@@ -39,6 +40,10 @@ in
     {
       assertion = lib.getName pkgs._1password-cli == "1password-cli";
       message = "The common package policy expects the 1Password CLI package";
+    }
+    {
+      assertion = lib.versions.major pkgs.opencode.version == "2";
+      message = "The common package policy expects OpenCode v2";
     }
   ];
 }
