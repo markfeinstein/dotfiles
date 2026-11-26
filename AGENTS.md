@@ -20,9 +20,9 @@ add to the global instructions and the `repository-workflow` skill.
   Names group by area: `home-*` and `darwin-*` evaluate the profile outputs,
   `pi-*` cover Pi configuration and the coordinator skill, `obsidian-*`,
   `neovim-*`, and `marksman-binary` cover the editor setup, `rebuild-source`
-  covers `bin/rebuild` source selection, `rex-*` cover Rex labels and the app
-  bundle, and `yabai-signed-app` covers the signed app. Run any newer checks
-  the command lists for areas you change.
+  covers `bin/rebuild` source selection, `rex-*` cover Rex labels, and
+  `yabai-signed-app` covers the signed app. Run any
+  newer checks the command lists for areas you change.
 - Run one check: `nix build --no-link .#checks.aarch64-darwin.<name>`. Run
   `nix flake check --no-build` for a broad evaluation of every output and
   `nix fmt -- --ci` for Nix formatting (both run in CI; `nix fmt` fixes it).

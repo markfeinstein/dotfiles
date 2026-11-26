@@ -11,8 +11,19 @@ personal_flake=${DOTFILES_PERSONAL_FLAKE:-$default_flake}
 work_flake=${DOTFILES_WORK_FLAKE:-$default_flake}
 profile_file=${DOTFILES_PROFILE_FILE:-${XDG_CONFIG_HOME:-$HOME/.config}/dotfiles/profile}
 auth_github=0
+install_rex_only=0
 tmp_dir=
 profile_tmp=
+rex_tmp_dir=
+rex_mount_dir=
+rex_mounted=0
+rex_transaction_root=
+rex_destination_parent=
+rex_feed_url=${DOTFILES_REX_FEED_URL:-https://blob.superlogical.com/public/rex-app/snapshot-arm64/appcast.xml}
+rex_destination=${DOTFILES_REX_DESTINATION:-/Applications/Rex.app}
+rex_alternate_destination=${DOTFILES_REX_ALTERNATE_DESTINATION:-/Applications/Rex Beta.app}
+rex_bundle_identifier=com.superlogical.rex
+rex_team_identifier=AG92C3PT77
 clt_marker=/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
 clt_marker_created=0
 determinate_installer_version=3.24.2
@@ -22,12 +33,16 @@ determinate_installer_x86_64_linux_sha256=22ed14ee1b24d100d388f1fc245e3062bd5982
 usage() {
   cat <<'HELP'
 Usage: bootstrap [--profile personal|work] [--host NAME] [--flake REF] [--auth-github]
+       bootstrap --install-rex-only
 
 Configure a new machine without Git, Homebrew, or a local checkout.
-Installs Determinate Nix when Nix is absent, then activates the selected profile.
+Installs Rex and Determinate Nix when absent, then activates the selected profile.
 
 Profile precedence:
   --profile, DOTFILES_PROFILE, persisted profile, interactive prompt
+
+Special operation:
+  --install-rex-only        Install Rex when absent, then exit
 
 Darwin configuration selection:
   --host or DOTFILES_HOST selects an exact output. Otherwise bootstrap tries
@@ -44,6 +59,7 @@ Environment:
   DOTFILES_FLAKE            one-run flake override
   DOTFILES_PERSONAL_FLAKE   default personal flake
   DOTFILES_WORK_FLAKE       default work flake
+  DOTFILES_REX_FEED_URL     Rex Sparkle appcast override
 
 macOS flakes must export darwinConfigurations.<host> or a profile fallback.
 Linux flakes must export homeConfigurations.<system>-<profile>.
@@ -175,6 +191,133 @@ ensure_darwin_command_line_tools() {
   has_darwin_command_line_tools || install_darwin_command_line_tools
 }
 
+verify_darwin_rex_app() {
+  candidate=$1
+  [ -d "$candidate" ] && [ ! -L "$candidate" ] || return 1
+  requirement="anchor apple generic and identifier \"$rex_bundle_identifier\" and certificate leaf[subject.OU] = \"$rex_team_identifier\""
+  /usr/bin/codesign --verify --deep --strict --test-requirement "=$requirement" "$candidate" >/dev/null 2>&1 || return 1
+  /usr/sbin/spctl -a -t execute "$candidate" >/dev/null 2>&1 || return 1
+  actual_identifier=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$candidate/Contents/Info.plist" 2>/dev/null) || return 1
+  [ "$actual_identifier" = "$rex_bundle_identifier" ] || return 1
+  actual_team=$(/usr/bin/codesign -dv --verbose=4 "$candidate" 2>&1 | sed -n 's/^TeamIdentifier=//p') || return 1
+  [ "$actual_team" = "$rex_team_identifier" ]
+}
+
+run_rex_install_command() {
+  if [ -w "$rex_destination_parent" ]; then
+    "$@"
+  else
+    sudo "$@"
+  fi
+}
+
+cleanup_rex_bootstrap() {
+  if [ "$rex_mounted" -eq 1 ] && [ -n "$rex_mount_dir" ]; then
+    /usr/bin/hdiutil detach "$rex_mount_dir" >/dev/null 2>&1 || true
+    rex_mounted=0
+  fi
+  if [ -n "$rex_transaction_root" ] && [ -d "$rex_transaction_root" ] && [ ! -L "$rex_transaction_root" ]; then
+    case $rex_transaction_root in
+      "$rex_destination_parent"/.Rex.app.activation.*)
+        run_rex_install_command /bin/chmod -R u+w "$rex_transaction_root" >/dev/null 2>&1 || true
+        run_rex_install_command /usr/bin/find "$rex_transaction_root" -depth -delete >/dev/null 2>&1 || true
+        ;;
+    esac
+    rex_transaction_root=
+  fi
+  if [ -n "$rex_tmp_dir" ] && [ -d "$rex_tmp_dir" ] && [ ! -L "$rex_tmp_dir" ]; then
+    case $rex_tmp_dir in
+      "${TMPDIR:-/tmp}"/dotfiles-rex.??????)
+        /usr/bin/find "$rex_tmp_dir" -depth -delete >/dev/null 2>&1 || true
+        ;;
+    esac
+    rex_tmp_dir=
+  fi
+}
+
+ensure_darwin_rex() {
+  [ "$os" = darwin ] || return
+  [ "$arch" = aarch64 ] || fail 'Rex application bootstrap supports Apple silicon only'
+  case $rex_destination:$rex_alternate_destination in
+    /*:/*) ;;
+    *) fail 'Rex application destinations must be absolute paths' ;;
+  esac
+  [ "$rex_destination" != "$rex_alternate_destination" ] || fail 'Rex application destinations must differ'
+
+  existing_rex=0
+  for candidate in "$rex_destination" "$rex_alternate_destination"; do
+    if [ -e "$candidate" ] || [ -L "$candidate" ]; then
+      verify_darwin_rex_app "$candidate" || fail "refusing to leave an unverified Rex application at $candidate"
+      existing_rex=1
+    fi
+  done
+  if [ "$existing_rex" -eq 1 ]; then
+    log 'Rex is already installed and will manage its own updates'
+    return
+  fi
+
+  for command in curl xmllint; do
+    command -v "$command" >/dev/null 2>&1 || fail "$command is required to install Rex"
+  done
+  rex_destination_parent=$(/usr/bin/dirname "$rex_destination")
+  [ -d "$rex_destination_parent" ] && [ ! -L "$rex_destination_parent" ] || \
+    fail "Rex destination parent is not a directory: $rex_destination_parent"
+
+  rex_tmp_dir=$(mktemp -d "${TMPDIR:-/tmp}/dotfiles-rex.XXXXXX") || fail 'could not create Rex download directory'
+  rex_mount_dir="$rex_tmp_dir/mount"
+  mkdir "$rex_mount_dir" || fail 'could not create Rex mount directory'
+  appcast="$rex_tmp_dir/appcast.xml"
+  dmg="$rex_tmp_dir/Rex.dmg"
+
+  log 'Finding the latest Rex snapshot'
+  curl --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 60 --retry 2 -fsSL \
+    "$rex_feed_url" -o "$appcast" || fail 'Rex update feed download failed'
+  download_url=$(/usr/bin/xmllint --xpath \
+    'string((/*[local-name()="rss"]/*[local-name()="channel"]/*[local-name()="item"][1]/*[local-name()="enclosure"]/@url)[1])' \
+    "$appcast" 2>/dev/null) || fail 'could not read the Rex update feed'
+  case $download_url in
+    https://blob.superlogical.com/*) ;;
+    *) fail "unexpected Rex download URL: ${download_url:-empty}" ;;
+  esac
+
+  log 'Downloading the latest Rex snapshot'
+  curl --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 600 --retry 2 -fsSL \
+    "$download_url" -o "$dmg" || fail 'Rex application download failed'
+  /usr/bin/hdiutil attach -nobrowse -readonly -mountpoint "$rex_mount_dir" "$dmg" >/dev/null 2>&1 || \
+    fail 'could not mount the Rex disk image'
+  rex_mounted=1
+
+  source_app=
+  for app_name in Rex.app 'Rex Beta.app'; do
+    if [ -d "$rex_mount_dir/$app_name" ] && [ ! -L "$rex_mount_dir/$app_name" ]; then
+      source_app="$rex_mount_dir/$app_name"
+      break
+    fi
+  done
+  [ -n "$source_app" ] || fail 'the Rex disk image contains no application bundle'
+  verify_darwin_rex_app "$source_app" || fail 'downloaded Rex failed signature or identity verification'
+
+  log 'Installing Rex (administrator approval may be required)'
+  rex_transaction_root=$(run_rex_install_command /usr/bin/mktemp -d "$rex_destination_parent/.Rex.app.activation.XXXXXX") || \
+    fail 'could not create Rex installation directory'
+  staged_app="$rex_transaction_root/Rex.app"
+  run_rex_install_command /usr/bin/ditto --noacl --noextattr --noqtn --norsrc "$source_app" "$staged_app" || \
+    fail 'could not copy Rex into its installation directory'
+  run_rex_install_command /usr/sbin/chown -R "$(id -un):$(id -gn)" "$staged_app" || fail 'could not set Rex ownership'
+  run_rex_install_command /bin/chmod -R u+w,go-w "$staged_app" || fail 'could not set Rex permissions'
+  verify_darwin_rex_app "$staged_app" || fail 'copied Rex failed signature or identity verification'
+
+  for candidate in "$rex_destination" "$rex_alternate_destination"; do
+    if [ -e "$candidate" ] || [ -L "$candidate" ]; then
+      fail "refusing concurrent Rex installation at $candidate"
+    fi
+  done
+  run_rex_install_command /bin/mv "$staged_app" "$rex_destination" || fail 'could not finish the Rex installation'
+  verify_darwin_rex_app "$rex_destination" || fail 'installed Rex failed final verification'
+  cleanup_rex_bootstrap
+  log 'Rex installed; its built-in updater now owns the application version'
+}
+
 has_darwin_configuration() {
   wanted_configuration=$1
   while IFS= read -r available_configuration; do
@@ -219,6 +362,7 @@ select_darwin_configuration() {
 }
 
 cleanup() {
+  cleanup_rex_bootstrap
   [ -z "$tmp_dir" ] || rm -rf "$tmp_dir"
   [ -z "$profile_tmp" ] || rm -f "$profile_tmp"
   [ "$clt_marker_created" -eq 0 ] || rm -f "$clt_marker"
@@ -234,10 +378,19 @@ while [ "$#" -gt 0 ]; do
     --flake) [ "$#" -ge 2 ] || fail '--flake requires a value'; flake=$2; shift 2 ;;
     --flake=*) flake=${1#*=}; shift ;;
     --auth-github) auth_github=1; shift ;;
+    --install-rex-only) install_rex_only=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) fail "unknown option: $1" ;;
   esac
 done
+
+[ "$(id -u)" -ne 0 ] || fail 'run as your normal account, not root'
+resolve_dotfiles_system
+if [ "$install_rex_only" -eq 1 ]; then
+  [ "$os" = darwin ] || fail '--install-rex-only is supported only on macOS'
+  ensure_darwin_rex
+  exit 0
+fi
 
 select_dotfiles_profile
 
@@ -251,11 +404,10 @@ if [ -z "$flake" ]; then
   fi
 fi
 [ -n "$flake" ] || fail "$profile flake not set: pass --flake REF or set $profile_flake_variable"
-[ "$(id -u)" -ne 0 ] || fail 'run as your normal account, not root'
 
-resolve_dotfiles_system
 resolve_dotfiles_host
 ensure_darwin_command_line_tools
+ensure_darwin_rex
 
 load_nix() {
   command -v nix >/dev/null 2>&1 && return 0

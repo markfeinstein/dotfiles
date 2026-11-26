@@ -46,7 +46,6 @@ let
       "1password-cli"
       "claude-code"
       "copilot-language-server"
-      "rex-app"
       "terraform"
     ];
   pkgsFor =
@@ -512,17 +511,6 @@ let
             /usr/bin/codesign --verify --deep --strict "$app"
             /usr/bin/codesign -dv --verbose=4 "$app" 2>&1 \
               | ${m5Pkgs.gnugrep}/bin/grep -Fx 'TeamIdentifier=GYXXG6S7KM'
-            touch "$out"
-          '';
-          rex-app-bundle = m5Pkgs.runCommand "rex-app-bundle-check" { } ''
-            app="${m5Pkgs.rex-app}/Applications/Rex Beta.app"
-
-            test -x "$app/Contents/MacOS/Rex"
-            /usr/bin/codesign --verify --deep --strict "$app"
-            test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")" = \
-              com.superlogical.rex
-            /usr/bin/codesign -dv --verbose=4 "$app" 2>&1 \
-              | ${m5Pkgs.gnugrep}/bin/grep -Fx 'TeamIdentifier=AG92C3PT77'
             touch "$out"
           '';
         };

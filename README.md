@@ -312,14 +312,14 @@ Nix when Nix is absent, and activates the selected nix-darwin or Home Manager
 profile. On macOS it first installs Apple's Command Line Tools through
 `softwareupdate` when no usable developer directory and SDK are available. The
 macOS Nix package signature is checked against Determinate Systems' signing team;
-Linux uses a versioned installer binary with a pinned SHA-256. Both macOS
-profiles install a pinned, notarized Rex Beta snapshot in `/Applications` after
-verifying its bundle and Developer ID team. An existing officially signed Rex
-installation is preserved so its built-in updater can manage newer snapshots;
-an unverified application at that path is never replaced. Bootstrap does not
-clone the repository or provision credentials. A private downstream flake can
-be selected on a fresh machine with `--flake` and accessed with an interactively
-supplied token:
+Linux uses a versioned installer binary with a pinned SHA-256. On macOS,
+bootstrap reads Rex's Sparkle feed and installs its latest signed snapshot only
+when neither `Rex.app` nor `Rex Beta.app` is already installed with the official
+signature. Nix configures Rex but does not own its application bundle; Rex's
+built-in updater owns the installed version. Bootstrap does not clone the
+repository or provision credentials. To run only the idempotent Rex installer,
+pass `--install-rex-only`. A private downstream flake can be selected on a fresh
+machine with `--flake` and accessed with an interactively supplied token:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/markfeinstein/dotfiles/main/bin/bootstrap \
