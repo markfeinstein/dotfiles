@@ -247,6 +247,11 @@ let
         {
           home-personal = homeConfigurations."${system}-personal".activationPackage;
           home-work = homeConfigurations."${system}-work".activationPackage;
+          opencode-v2 = import ./tests/opencode-v2.nix {
+            personal = homeConfigurations."${system}-personal";
+            work = homeConfigurations."${system}-work";
+            inherit lib pkgs;
+          };
           profile-obsidian = import ./tests/profile-obsidian.nix {
             inherit
               darwinConfigurations

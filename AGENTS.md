@@ -19,8 +19,9 @@ add to the global instructions and the `repository-workflow` skill.
   `nix eval --json .#checks.aarch64-darwin --apply builtins.attrNames`.
   Names group by area: `home-*` and `darwin-*` evaluate the profile outputs,
   `pi-*` cover Pi configuration and the coordinator skill, `obsidian-*`,
-  `neovim-*`, and `marksman-binary` cover the editor setup, `rebuild-source`
-  covers `bin/rebuild` source selection, `rex-*` cover Rex labels, and
+  `neovim-*`, and `marksman-binary` cover the editor setup, `opencode-v2`
+  validates the generated OpenCode configuration, `rebuild-source` covers
+  `bin/rebuild` source selection, `rex-*` cover Rex labels, and
   `yabai-signed-app` covers the signed app. Run any
   newer checks the command lists for areas you change.
 - Run one check: `nix build --no-link .#checks.aarch64-darwin.<name>`. Run

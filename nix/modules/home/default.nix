@@ -18,6 +18,7 @@
     ./neovim.nix
     ./nushell
     ./openlogi.nix
+    ./opencode.nix
     ./packages.nix
     ./pi.nix
     ./ripgrep.nix

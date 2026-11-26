@@ -20,6 +20,7 @@ in
 
     shellAliases = {
       cat = "bat";
+      o = "opencode";
       p = "pi";
     };
   };
