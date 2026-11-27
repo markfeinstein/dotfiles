@@ -38,11 +38,11 @@
 
         # Command finishes and a new prompt begins.
         _rex_precmd() {
-          local -i status=$?
+          local -i exit_status=$?
           emulate -L zsh
 
           if (( _rex_command_running )); then
-            print -rn -- $'\e]133;D;'"$status"$'\e\\' >"$TTY"
+            print -rn -- $'\e]133;D;'"$exit_status"$'\e\\' >"$TTY"
             _rex_command_running=0
           fi
 
