@@ -12,6 +12,10 @@ add to the global instructions and the `repository-workflow` skill.
 - Standing approval: once a task's checks pass, merging into local `main` and
   removing the task worktree and branch are pre-approved here. Push and rebuild
   still require an explicit request.
+- Exception: a separately and explicitly requested local `main` replacement
+  with a history-rewrite candidate may use the guarded procedure in the
+  `repository-workflow` skill. Standing integration approval does not authorize
+  this replacement, and the publishing rules below remain unchanged.
 
 ## Verification
 

@@ -51,10 +51,49 @@ rebasing, or cleanup behavior.
 If the target is not an ancestor, a merge conflicts, or the normal strategy
 needs another topology, stop rather than automatically rebasing or squashing.
 Use a different non-destructive strategy only when it is explicitly authorized
-and established for the repository.
+and established for the repository. A separately authorized identical-tree
+history replacement may instead use the guarded procedure below.
 
 Keep the integration mutation in its own call. Report successful local branch
 integration immediately, before post-integration verification or any cleanup.
+
+## Replace Local History With an Identical Tree
+
+Use this exception only when the user explicitly requests replacement of the
+named local branch with a named history-rewrite candidate and repository policy
+permits it. Ordinary integration or standing cleanup approval is not enough.
+It does not authorize a push, force-push, remote ref change, or cleanup.
+
+1. Claim the integration lane as above. Verify the exact target and candidate
+   refs and worktrees, both clean, and confirm the target worktree has the
+   expected branch checked out. Record their full commit IDs as `old_tip` and
+   `candidate_tip`. Ensure relevant sessions and worktrees can tolerate the
+   changed history; do not alter another worktree or pre-existing ref other than
+   the explicitly authorized target branch.
+2. Verify the candidate has passed appropriate checks and its Git tree ID is
+   identical to the current target tip's tree ID. Stop if the target has
+   advanced or either tree differs; do not discard new changes to make it match.
+3. Choose an unused local `refs/heads/` backup ref and create it at `old_tip`
+   with a create-only update, then verify it resolves to `old_tip`. Never
+   overwrite an existing ref. For a validated `backup_ref`:
+
+   ```sh
+   git update-ref "$backup_ref" "$old_tip" ""
+   ```
+
+4. In a separate call, atomically update the exact target branch only if it still
+   points to `old_tip`:
+
+   ```sh
+   git update-ref "$target_ref" "$candidate_tip" "$old_tip"
+   ```
+
+   Do not use a hard reset or force flag. If either update fails, stop and
+   preserve the backup. The identical-tree check is required because the
+   checked-out worktree and index are not rewritten by `update-ref`.
+5. Immediately report the replacement, old and new IDs, and backup ref. Verify
+   the target ref, backup ref, checked-out branch, and worktree status. Leave
+   the backup and candidate in place; handle cleanup or publishing separately.
 
 ## Verify and Clean Up
 

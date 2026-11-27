@@ -51,7 +51,8 @@ cleanup. Push, activation, and deployment always need an explicit request.
    For an earlier task-owned unpublished commit, use a targeted `fixup!` commit
    and autosquash once before delivery. Do not rewrite work owned by another
    writer or already published or integrated, except for the isolated candidate
-   described below.
+   described below and a separately authorized local replacement following the
+   guarded procedure in the integration reference.
 7. **Review the completed series.** Inspect every task commit and the full diff
    from the recorded base. In Worktrunk repositories, prefer
    `wt -C SOURCE_WORKTREE step diff TARGET_BRANCH` for the net integration diff.
@@ -63,7 +64,8 @@ cleanup. Push, activation, and deployment always need an explicit request.
 9. **Integrate or clean up only when authorized.** Proceed when the user
    explicitly authorizes it or the repository's `AGENTS.md` pre-approves it.
    Before either action, read [Local integration and cleanup](references/local-integration.md)
-   and follow its single-owner protocol and exact non-rewriting commands.
+   and follow its single-owner protocol and applicable commands. A local history
+   replacement requires the reference's separate explicit authorization.
 
 A delegated writer stops at a clean, tested, committed source worktree and
 reports its path, branch, base, commit range, changed files, checks, and risks.
