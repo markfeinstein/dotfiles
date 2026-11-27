@@ -53,6 +53,44 @@ expect() {
   printf 'ok %s\n' "$label"
 }
 
+test_lockfile_commit_subject() {
+  local repo="$root/lockfile-only" marker="$root/pi-called" subject
+  mkdir -p "$repo" "$root/commit-tmp"
+  git -C "$repo" init -q
+  git -C "$repo" config user.name Test
+  git -C "$repo" config user.email test@example.com
+  git -C "$repo" config commit.gpgsign false
+  printf '{}\n' >"$repo/flake.lock"
+  git -C "$repo" add flake.lock
+
+  (
+    cd "$repo"
+    eval "$(awk '/^commit_index\(\) \{/,/^\}/' "$rebuild")"
+    manual_message=''
+    commit_model=''
+    tmp_dir="$root/commit-tmp"
+    fallback_message=0
+    committed=no
+    fail() { printf 'FAIL lockfile-only commit: %s\n' "$*" >&2; exit 1; }
+    confirm() { touch "$marker"; return 1; }
+    pi() { touch "$marker"; return 1; }
+    commit_index
+  )
+
+  subject=$(git -C "$repo" log -1 --format=%s)
+  [[ "$subject" == 'chore(flake): update inputs' ]] || {
+    printf 'FAIL lockfile-only commit: unexpected subject "%s"\n' "$subject" >&2
+    exit 1
+  }
+  [[ ! -e "$marker" ]] || {
+    printf 'FAIL lockfile-only commit: prompted or called Pi\n' >&2
+    exit 1
+  }
+  printf 'ok lockfile-only commit skips Pi\n'
+}
+
+test_lockfile_commit_subject
+
 expect 'no persisted source uses the default' 'github:markfeinstein/dotfiles/main remote'
 
 printf '%s/\n' "$root/work-checkout" >"$sources/work"
