@@ -260,14 +260,17 @@ return function(context)
   }
 
   local function act(mode, url)
-    local result, err
-    if mode == "copy" then
-      result, err = rex.exec({ clipboard_bin }, { stdin = url, timeout = 5, stdout = false, stderr = false })
-    elseif mode == "background" then
-      result, err = rex.exec({ open_bin, "-g", url }, { timeout = 5, stdout = false, stderr = false })
-    else
-      result, err = rex.exec({ open_bin, url }, { timeout = 5, stdout = false, stderr = false })
+    if mode == "open" then
+      rex.client.queue("client.url.open", { url = url })
+      return
     end
+
+    local argv = mode == "copy" and { clipboard_bin } or { open_bin, "-g", url }
+    local options = { timeout = 5, stdout = false, stderr = false }
+    if mode == "copy" then
+      options.stdin = url
+    end
+    local result, err = rex.exec(argv, options)
     if result == nil or not result.ok then
       error("Unable to " .. (mode == "copy" and "copy" or "open") .. " the URL: " .. tostring(err or result.code), 0)
     end

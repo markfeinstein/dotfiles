@@ -6,11 +6,10 @@ rex = {
     assert(#prompt.items == 3 and not prompt.multiple)
     return picked, why
   end },
-  exec = function(argv)
-    assert(argv[1] == "/usr/bin/open" and #argv == 2)
-    opened = argv[2]
-    return { ok = true }
-  end,
+  client = { queue = function(action, args)
+    assert(action == "client.url.open")
+    opened = args.url
+  end },
 }
 dofile("rex/modules/pickers.lua")({})
 local run = assert(actions.rex_docs_picker)

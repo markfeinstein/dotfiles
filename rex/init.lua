@@ -12,31 +12,9 @@ local git_project = "@git_project@"
 -- Home Manager replaces this exact default for profiles that enable the
 -- personal password-store picker.
 local password_picker_enabled = false
-local picker_focus_watcher = true
-local rose_pine_theme = os.getenv("HOME") .. "/.config/rex/themes/Rose Pine"
-local rose_pine_moon_theme = os.getenv("HOME") .. "/.config/rex/themes/Rose Pine Moon"
-local rose_pine_dawn_theme = os.getenv("HOME") .. "/.config/rex/themes/Rose Pine Dawn"
-local rose_pine_dark_theme = rose_pine_theme
-local policy_ok, theme_policy = pcall(dofile, os.getenv("HOME") .. "/.config/rex/theme-policy.lua")
-if policy_ok and theme_policy.dark_theme ~= nil then
-  rose_pine_dark_theme = theme_policy.dark_theme
-end
 local terminal_creator = "com.superlogical.terminal"
 local terminal_shell = "com.superlogical.terminal.shell"
-local terminal_drawer_command = "@terminal_drawer_command@"
-local terminal_drawer_label = "Terminal Drawer"
-local terminal_drawer_default_preset = "right"
-local terminal_drawer_presets = {
-  right = { 0.68, 0.04, 0.30, 0.92 },
-  left = { 0.02, 0.04, 0.30, 0.92 },
-  center = { 0.15, 0.12, 0.70, 0.76 },
-  large = { 0.05, 0.05, 0.90, 0.90 },
-}
-local terminal_drawer_state_directory = (os.getenv("XDG_STATE_HOME")
-  or (os.getenv("HOME") .. "/.local/state")) .. "/rex"
-local terminal_drawer_state_path = terminal_drawer_state_directory .. "/terminal-drawer.tsv"
-local terminal_drawer_state_header = "# rex-terminal-drawer-state-v2"
-local terminal_drawer_state_version = 2
+local terminal_command = "@terminal_command@"
 local terminal_native_navigation_blocks = {}
 
 local config_source = debug.getinfo(1, "S").source
@@ -61,37 +39,6 @@ local function copy_bounds(bounds)
   return { bounds[1], bounds[2], bounds[3], bounds[4] }
 end
 
-local function valid_bounds(bounds)
-  if bounds == nil or #bounds ~= 4 then
-    return false
-  end
-  local x, y, width, height = bounds[1], bounds[2], bounds[3], bounds[4]
-  return type(x) == "number"
-    and type(y) == "number"
-    and type(width) == "number"
-    and type(height) == "number"
-    and x >= 0
-    and y >= 0
-    and width > 0
-    and height > 0
-    and x + width <= 1.000001
-    and y + height <= 1.000001
-end
-
-local drawer_state = load_module("drawer_state")({
-  presets = terminal_drawer_presets,
-  default_preset = terminal_drawer_default_preset,
-  directory = terminal_drawer_state_directory,
-  path = terminal_drawer_state_path,
-  header = terminal_drawer_state_header,
-  version = terminal_drawer_state_version,
-  copy_bounds = copy_bounds,
-  valid_bounds = valid_bounds,
-  write_atomic = common.write_atomic,
-})
-local terminal_drawer_return_focus_by_session = drawer_state.return_focus_by_session
-local terminal_drawer_state = drawer_state.state
-
 local function open_terminal_layer(label, command, bounds, cwd)
   local options = {
     command = command,
@@ -115,7 +62,6 @@ local function open_terminal_layer(label, command, bounds, cwd)
   end
   return {
     layer_id = result.layer_id,
-    revision = result.revision,
     block_ids = result.block_ids or {},
   }
 end
@@ -190,59 +136,17 @@ local function active_block_id(view)
   return window and window.focused_block_id or nil
 end
 
-local function terminal_drawer_anchor_block_id(session_id, view)
-  local window = common.active_window(view)
-  local remembered_block_id = terminal_drawer_return_focus_by_session[session_id]
-  if remembered_block_id ~= nil then
-    for _, layer in ipairs(window and window.layers or {}) do
-      if layer.kind == "tiled" then
-        for _, block in ipairs(layer.blocks or {}) do
-          if block.block_id == remembered_block_id then
-            return remembered_block_id
-          end
-        end
-      end
-    end
-  end
-  return common.tiled_block_id(window)
-end
-
 load_module("navigation")({
   yabai = yabai,
   terminal_creator = terminal_creator,
-  terminal_shell = terminal_shell,
-  terminal_drawer_label = terminal_drawer_label,
-  terminal_drawer_return_focus_by_session = terminal_drawer_return_focus_by_session,
   terminal_owns_navigation = terminal_owns_navigation,
   active_block_id = active_block_id,
   active_window = common.active_window,
   prefix = prefix,
 })
 
-local drawer = load_module("drawer")({
-  terminal_creator = terminal_creator,
-  terminal_shell = terminal_shell,
-  terminal_drawer_command = terminal_drawer_command,
-  terminal_drawer_label = terminal_drawer_label,
-  terminal_drawer_presets = terminal_drawer_presets,
-  terminal_drawer_return_focus_by_session = terminal_drawer_return_focus_by_session,
-  copy_bounds = copy_bounds,
-  terminal_drawer_state = terminal_drawer_state,
-  update_terminal_drawer_state = drawer_state.update,
-  active_window = common.active_window,
-  active_block_id = active_block_id,
-  terminal_drawer_anchor_block_id = terminal_drawer_anchor_block_id,
-  tiled_block_id = common.tiled_block_id,
-  move_and_float = common.move_and_float,
-  process_cwd = common.process_cwd,
-})
-
 load_module("geometry")({
   copy_bounds = copy_bounds,
-  find_block_layer = drawer.find_block_layer,
-  layer_contains_terminal_drawer = drawer.layer_contains_terminal_drawer,
-  update_terminal_drawer_state = drawer.update_terminal_drawer_state,
-  view_or_error = drawer.view_or_error,
 })
 
 load_module("pickers")({
@@ -254,18 +158,12 @@ load_module("pickers")({
   open_terminal_layer = open_terminal_layer,
   terminal_native_navigation_blocks = terminal_native_navigation_blocks,
   process_cwd = common.process_cwd,
-  write_atomic = common.write_atomic,
   rex_picker = rex_picker,
-  picker_focus_watcher = picker_focus_watcher,
   rex_gh_dash = rex_gh_dash,
   rex_capture = rex_capture,
   scrollback_editor = scrollback_editor,
   rex_lazygit = rex_lazygit,
   password_picker_enabled = password_picker_enabled,
-  rose_pine_theme = rose_pine_theme,
-  rose_pine_moon_theme = rose_pine_moon_theme,
-  rose_pine_dawn_theme = rose_pine_dawn_theme,
-  rose_pine_dark_theme = rose_pine_dark_theme,
 })
 
 load_module("url_picker")({
@@ -276,6 +174,7 @@ load_module("prompts")({
   terminal_creator = terminal_creator,
   normalized_process_name = normalized_process_name,
   terminal_shell = terminal_shell,
+  terminal_command = terminal_command,
   process_cwd = common.process_cwd,
   git_project = git_project,
 })
@@ -283,5 +182,4 @@ load_module("prompts")({
 load_module("bindings")({
   prefix = prefix,
   password_picker_enabled = password_picker_enabled,
-  terminal_drawer_default_preset = terminal_drawer_default_preset,
 })

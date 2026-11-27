@@ -9,10 +9,16 @@ rex = {
 }
 
 dofile("rex/modules/bindings.lua")({
-  prefix = function() end,
+  prefix = function(key, action, args)
+    rex.bind("ctrl+space>" .. key, action, args)
+  end,
   password_picker_enabled = false,
-  terminal_drawer_default_preset = "right",
 })
 
-assert(bindings["cmd+`"].action == "pane.new_floating")
+assert(bindings["cmd+`"].action == "client.quick_terminal.toggle")
+assert(bindings["cmd+[Digit1]"].action == "client.tab.goto")
+assert(bindings["ctrl+space>[Digit1]"].action == "client.tab.goto")
+assert(bindings["ctrl+space>n"].action == "client.tab.next")
+assert(bindings["ctrl+space>p"].action == "client.tab.previous")
+assert(bindings["ctrl+space>`"] == nil)
 print("bindings ok")

@@ -31,12 +31,11 @@ add to the global instructions and the `repository-workflow` skill.
 - Run one check: `nix build --no-link .#checks.aarch64-darwin.<name>`. Run
   `nix flake check --no-build` for a broad evaluation of every output and
   `nix fmt -- --ci` for Nix formatting (both run in CI; `nix fmt` fixes it).
-- Rex Lua and Python tests live in `tests/rex/` and have no Nix check. Run them
-  from the repository root when you change Rex scripts or pickers. `lua` is not
-  on `PATH`, so use
+- Rex Lua tests live in `tests/rex/` and have no Nix check. Run them from the
+  repository root when you change Rex scripts or pickers. `lua` is not on
+  `PATH`, so use
   `nix shell --offline --inputs-from . nixpkgs#lua5_1 --command lua tests/rex/worktrees.lua`
-  (Lua 5.1; the other `tests/rex/*.lua` files run the same way) and
-  `python3 tests/rex/picker_focus.py`.
+  (Lua 5.1; the other `tests/rex/*.lua` files run the same way).
 - Nix only sees tracked files: `git add` new files (intent-to-add is enough)
   before evaluating or building.
 

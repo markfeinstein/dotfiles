@@ -8,17 +8,6 @@ let
   cfg = config.dotfiles.rex;
   theme = import ../../lib/theme.nix;
   terminalColors = import ../../lib/terminal-colors.nix;
-  programActivityStatusPreferences = builtins.toJSON {
-    working = {
-      sound = "loading";
-      showsNotification = true;
-      isEnabled = true;
-      showsInTabs = true;
-      badgesDockIcon = false;
-      playsSound = false;
-    };
-  };
-
   hexByte = value: lib.fixedWidthString 2 "0" (lib.toLower (lib.toHexString value));
   rgb =
     red: green: blue:
@@ -87,17 +76,16 @@ let
         rexCapture = lib.getExe rexCli;
         scrollbackEditor = lib.getExe managedNeovim;
         gitProject = lib.getExe pkgs.git-project;
-        terminalDrawerCommand = lib.getExe rexNushell;
+        terminalCommand = lib.getExe rexNushell;
       }
       ''
         cp -R ${../../../rex} "$out"
         chmod -R u+w "$out"
         substituteInPlace "$out/init.lua" \
-          --replace-fail 'local picker_focus_watcher = true' 'local picker_focus_watcher = ${lib.boolToString cfg.drawerFollowEnable}' \
           --replace-fail '@rex_capture@' "$rexCapture" \
           --replace-fail '@scrollback_editor@' "$scrollbackEditor" \
           --replace-fail '@git_project@' "$gitProject" \
-          --replace-fail '@terminal_drawer_command@' "$terminalDrawerCommand" \
+          --replace-fail '@terminal_command@' "$terminalCommand" \
           --replace-fail \
             'local password_picker_enabled = false' \
             'local password_picker_enabled = ${if cfg.passwordPicker.enable then "true" else "false"}'
@@ -157,26 +145,6 @@ let
       exec ${lib.getExe pkgs.nushell} "$@"
     '';
   };
-  rexDrawerFollowerSource = pkgs.runCommand "rex-drawer-follower-source" { } ''
-    mkdir -p "$out/lib"
-    cp ${../../../rex/follow-terminal-drawer.lua} "$out/follow-terminal-drawer.lua"
-    cp ${../../../rex/lib/common.lua} "$out/lib/common.lua"
-  '';
-  rexDrawerFollowerLua = "${rexDrawerFollowerSource}/follow-terminal-drawer.lua";
-  rexDrawerFollower = pkgs.writeShellApplication {
-    name = "rex-drawer-follower";
-    text = ''
-      rex=${lib.escapeShellArg rexBundledCli}
-      if [[ ! -x "$rex" ]]; then
-        echo "rex-drawer-follower: bundled CLI is not installed at $rex" >&2
-        exit 127
-      fi
-
-      unset GH_TOKEN GITHUB_TOKEN HOMEBREW_GITHUB_API_TOKEN GITHUB_PERSONAL_ACCESS_TOKEN
-
-      exec "$rex" --autostart=false "do" ${lib.escapeShellArg "${rexDrawerFollowerLua}"} --all --fail-fast
-    '';
-  };
 in
 {
   options.dotfiles.rex = {
@@ -190,12 +158,6 @@ in
       type = lib.types.str;
       default = "${config.home.homeDirectory}/Library/Application Support/com.superlogical.rex/RexServer/Versions/Current/Rex Server.app/Contents/MacOS/rex";
       description = "Version-matched CLI bundled with Rex.app";
-    };
-
-    drawerFollowEnable = lib.mkOption {
-      type = lib.types.bool;
-      default = true;
-      description = "Whether a visible floating terminal drawer follows the active Rex tab";
     };
 
     passwordPicker.enable = lib.mkEnableOption "the personal pass-backed Rex password picker";
@@ -243,18 +205,11 @@ in
           };
           "rex/lib/common.lua".source = "${rexConfigSource}/lib/common.lua";
           "rex/modules/navigation.lua".source = "${rexConfigSource}/modules/navigation.lua";
-          "rex/modules/drawer.lua".source = "${rexConfigSource}/modules/drawer.lua";
-          "rex/modules/drawer_state.lua".source = "${rexConfigSource}/modules/drawer_state.lua";
           "rex/modules/geometry.lua".source = "${rexConfigSource}/modules/geometry.lua";
           "rex/modules/pickers.lua".source = "${rexConfigSource}/modules/pickers.lua";
           "rex/modules/bindings.lua".source = "${rexConfigSource}/modules/bindings.lua";
           "rex/modules/prompts.lua".source = "${rexConfigSource}/modules/prompts.lua";
           "rex/modules/url_picker.lua".source = "${rexConfigSource}/modules/url_picker.lua";
-          "rex/theme-policy.lua".text = ''
-            return {
-              dark_theme = os.getenv("HOME") .. "/.config/rex/themes/${rexDarkThemeName}",
-            }
-          '';
           "rex/themes/Rose Pine".source = rexRosePineTheme;
           "rex/themes/Rose Pine Moon".source = rexRosePineMoonTheme;
           "rex/themes/Rose Pine Dawn".source = rexRosePineDawnTheme;
@@ -266,23 +221,6 @@ in
         targets.darwin.defaults."com.superlogical.rex"."Workspace.terminalStartupCommand" =
           lib.getExe rexNushell;
 
-        launchd.agents.rex-drawer-follower = lib.mkIf cfg.drawerFollowEnable {
-          enable = true;
-          restartTriggers = [
-            rexDrawerFollower
-            rexDrawerFollowerSource
-          ];
-          config = {
-            ProgramArguments = [ (lib.getExe rexDrawerFollower) ];
-            RunAtLoad = true;
-            KeepAlive.PathState."${config.home.homeDirectory}/Library/Application Support/rex/server.sock" =
-              true;
-            ProcessType = "Background";
-            ThrottleInterval = 10;
-            StandardOutPath = "${config.home.homeDirectory}/Library/Logs/rex-drawer-follower.log";
-            StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/rex-drawer-follower.log";
-          };
-        };
       }
       {
         home.activation = {
@@ -291,7 +229,7 @@ in
             rex=${lib.escapeShellArg rexBundledCli}
             ssh_config=${lib.escapeShellArg "${config.home.homeDirectory}/.ssh/config"}
             preference_domain=com.superlogical.rex
-            program_activity_status_preferences=${lib.escapeShellArg programActivityStatusPreferences}
+            working_status_args='{"dock_badge":false,"notifications":true,"sound":false,"sound_name":"loading","tabs":true}'
             rose_pine_themes=(
               ${lib.escapeShellArg "${config.xdg.configHome}/rex/themes/${rexOtherDarkThemeName}"}
               ${lib.escapeShellArg "${config.xdg.configHome}/rex/themes/Rose Pine Dawn"}
@@ -300,14 +238,8 @@ in
 
             if [ -n "''${DRY_RUN_CMD:-}" ]; then
               echo "Would remove the Rex tailnet-member access override"
-              echo "Would set the Rex per-status program activity policy"
             else
               /usr/bin/defaults delete "$preference_domain" rex.server.tailnet-allow-tailnet-members >/dev/null 2>&1 || true
-              program_activity_status_preferences_hex="$(
-                printf '%s' "$program_activity_status_preferences" | /usr/bin/xxd -p -c 4096
-              )"
-              /usr/bin/defaults write "$preference_domain" Workspace.programActivityStatusPreferences \
-                -data "$program_activity_status_preferences_hex"
             fi
 
             if [ ! -x "$rex" ]; then
@@ -318,8 +250,8 @@ in
             elif [ -n "''${DRY_RUN_CMD:-}" ]; then
               "$rex" terminfo setup --dry-run --json
               echo "Would reload Rex config when a local server is running"
-              echo "Would reload key bindings in each connected Rex app on this Mac"
-              echo "Would import the managed Rosé Pine themes when a unique app client is connected"
+              echo "Would configure working-status activity in each connected Rex app on this Mac"
+              echo "Would import the managed Rosé Pine themes in each connected Rex app on this Mac"
             else
               if ! terminfo_output="$("$rex" terminfo setup --json)"; then
                 printf '%s\n' "$terminfo_output" >&2
@@ -329,28 +261,25 @@ in
               if ! "$rex" --autostart=false config reload >/dev/null 2>&1; then
                 echo "Skipping Rex config reload: no available local server" >&2
               else
-                # A server reload alone can leave this Mac's app on stale key
-                # bindings, so ask each local app to reload as well.
                 local_apps="$(
                   "$rex" --autostart=false client ls --json 2>/dev/null |
                     ${lib.getExe pkgs.jq} -r '.clients[] | select(.info.kind == "app" and .principal.kind == "peer" and .connection_state == "connected") | .client_id'
                 )" || local_apps=""
                 for client_id in $local_apps; do
-                  if ! "$rex" --autostart=false --timeout 5s -C "$client_id" do client.config.reload >/dev/null 2>&1; then
-                    echo "Skipping Rex app key binding reload: $client_id did not respond" >&2
+                  if ! "$rex" --autostart=false --timeout 5s -C "$client_id" \
+                    do client.setting.notifications.activity.status_working \
+                    --args "$working_status_args" >/dev/null 2>&1; then
+                    echo "Skipping Rex working-status activity setup: $client_id did not respond" >&2
                   fi
-                done
 
-                theme_import_failed=false
-                for theme_path in "''${rose_pine_themes[@]}"; do
-                  if ! "$rex" --autostart=false do client.theme.import path="$theme_path" >/dev/null 2>&1; then
-                    theme_import_failed=true
-                    break
-                  fi
+                  for theme_path in "''${rose_pine_themes[@]}"; do
+                    if ! "$rex" --autostart=false --timeout 5s -C "$client_id" \
+                      do client.theme.import path="$theme_path" >/dev/null 2>&1; then
+                      echo "Skipping remaining Rex theme imports: $client_id did not respond" >&2
+                      break
+                    fi
+                  done
                 done
-                if [ "$theme_import_failed" = true ]; then
-                  echo "Skipping remaining Rex theme imports: no unique available app client" >&2
-                fi
               fi
             fi
               )

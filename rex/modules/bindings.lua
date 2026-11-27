@@ -1,7 +1,6 @@
 return function(context)
   local prefix = context.prefix
   local password_picker_enabled = context.password_picker_enabled
-  local terminal_drawer_default_preset = context.terminal_drawer_default_preset
 
 -- Direct macOS overrides extend the built-in terminal workflow.
 rex.bind("cmd+n", "session.new")
@@ -11,7 +10,7 @@ rex.bind("cmd+l", "open_url_picker")
 rex.bind("cmd+shift+l", "session.next")
 rex.bind("cmd+b", "client.sidebar.toggle")
 rex.bind("cmd+m", "model_picker")
-rex.bind("cmd+`", "pane.new_floating")
+rex.bind("cmd+`", "client.quick_terminal.toggle")
 -- yabai maps Cmd-H to this private direct chord so macOS Hide cannot win
 -- and no prefix timing is involved.
 rex.bind("ctrl+alt+cmd+[KeyH]", "client.sidebar.toggle")
@@ -23,8 +22,8 @@ rex.bind("cmd+[Minus]", "pane.split", { direction = "down" })
 rex.bind("cmd+shift+[Backslash]", "pane.split", { direction = "right" })
 
 for index = 1, 9 do
-  rex.bind("cmd+[Digit" .. index .. "]", "tab_goto_with_terminal_drawer", { index = index })
-  prefix("[Digit" .. index .. "]", "tab_goto_with_terminal_drawer", { index = index })
+  rex.bind("cmd+[Digit" .. index .. "]", "client.tab.goto", { index = index })
+  prefix("[Digit" .. index .. "]", "client.tab.goto", { index = index })
 end
 
 -- Ctrl-Space provides a consistent prefix for Rex's built-in workflow actions.
@@ -38,8 +37,8 @@ prefix("z", "pane.zoom")
 prefix("=", "pane.balance")
 prefix("r", "client.mode.enter", { name = "resize" })
 prefix("shift+r", "client.config.reload")
-prefix("n", "tab_offset_with_terminal_drawer", { offset = 1 })
-prefix("p", "tab_offset_with_terminal_drawer", { offset = -1 })
+prefix("n", "client.tab.next")
+prefix("p", "client.tab.previous")
 if password_picker_enabled then
   prefix("shift+p", "password_picker")
 end
@@ -78,8 +77,6 @@ prefix("alt+t", "client.tab_style.toggle")
 -- Started from the command palette, the docs picker's prompt never shows
 -- (the closing palette appears to cancel it), so give it a key.
 prefix("shift+/", "rex_docs_picker")
-prefix("`", "toggle_terminal_drawer_dock")
-prefix("shift+`", "toggle_terminal_drawer_park")
 
 -- Resize mode stays active until Enter, Escape, or Q. Floating panes move
 -- with unshifted directions and resize with shifted directions; tiled panes
@@ -108,15 +105,6 @@ for _, item in ipairs({
     direction = item.direction,
     operation = item.operation,
   })
-end
-for key, preset in pairs({
-  ["0"] = terminal_drawer_default_preset,
-  ["1"] = "right",
-  ["2"] = "left",
-  ["3"] = "center",
-  ["4"] = "large",
-}) do
-  rex.bind("resize/" .. key, "set_terminal_drawer_preset", { preset = preset })
 end
 rex.bind("resize/=", "pane.balance")
 rex.bind("resize/enter", "client.mode.exit")

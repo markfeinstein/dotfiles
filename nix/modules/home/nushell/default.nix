@@ -126,7 +126,7 @@ in
           builtins.toJSON {
             osc2 = true;
             osc7 = true;
-            osc133 = false;
+            osc133 = true;
           }
         }' | from json)
       ''

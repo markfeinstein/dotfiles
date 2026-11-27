@@ -1,5 +1,5 @@
 -- Run from the repository root with lua tests/rex/worktrees.lua.
-local actions, picks, inputs, execs, invoked, queued, created = {}, {}, {}, {}, {}, {}, {}
+local actions, picks, inputs, execs, queued, created = {}, {}, {}, {}, {}, {}
 local pick_reply, input_reply = {}, {}
 local cwd_by_block = {}
 local view = { windows = {} }
@@ -32,12 +32,12 @@ rex = {
     new_window = function(args) table.insert(created, args); return { window_id = "window:new" } end,
   },
   layout = { block = function(spec) return spec end },
-  invoke = function(name, args) table.insert(invoked, { name, args }); return { index = args.index } end,
-  client = { queue = function(name, args) table.insert(queued, { name, args }) end },
+  client = { queue = function(name, args) table.insert(queued, { name = name, args = args }) end },
 }
 dofile("rex/modules/prompts.lua")({
   terminal_creator = "com.superlogical.terminal",
   terminal_shell = "com.superlogical.terminal.shell",
+  terminal_command = "/bin/nu",
   process_cwd = function(process) return process.foreground.cwd end,
   git_project = "/bin/git-project",
 })
@@ -53,21 +53,24 @@ assert(items[2].title == "alpha · main" and items[3].title == "alpha · feat/x"
 -- No tab is in that worktree, so a labeled tab opens there.
 assert(result.opened and created[1].window_label == "alpha · feat/x")
 assert(created[1].layout.options.cwd == "/h/dev/alpha/feat-x")
+assert(created[1].layout.options.command[1] == "/bin/nu")
+assert(created[1].layout.options.shell == "none")
 
 -- An existing plain tab wins over an agent tab in the same worktree.
 view = { windows = {
   { label = "Agent · alpha · feat/x · 1234abcd", layers = { { kind = "tiled", blocks = {
     { block_id = "block:agent", creator_name = "com.superlogical.terminal" } } } } },
-  { label = "Terminal Drawer host", layers = { { kind = "floating", blocks = {
-    { block_id = "block:drawer", creator_name = "com.superlogical.terminal" } } } } },
+  { label = "Floating tool", layers = { { kind = "floating", blocks = {
+    { block_id = "block:float", creator_name = "com.superlogical.terminal" } } } } },
   { label = "alpha · feat/x", layers = { { kind = "tiled", blocks = {
     { block_id = "block:plain", creator_name = "com.superlogical.terminal" } } } } },
 } }
 cwd_by_block["block:agent"] = "/h/dev/alpha/feat-x"
-cwd_by_block["block:drawer"] = "/h/dev/alpha/feat-x"
+cwd_by_block["block:float"] = "/h/dev/alpha/feat-x"
 cwd_by_block["block:plain"] = "/h/dev/alpha/feat-x/lib"
 result = switch({ session_id = "s", block_id = "block:me" })
-assert(not result.opened and result.index == 3 and invoked[1][2].index == 3)
+assert(not result.opened and result.index == 3)
+assert(queued[1].name == "client.tab.goto" and queued[1].args.index == 3)
 
 -- Cancelling is quiet.
 pick_reply = { nil, "cancelled" }

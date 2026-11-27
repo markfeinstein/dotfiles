@@ -1,12 +1,29 @@
 return function(context)
   local copy_bounds = context.copy_bounds
-  local find_block_layer = context.find_block_layer
-  local layer_contains_terminal_drawer = context.layer_contains_terminal_drawer
-  local update_terminal_drawer_state = context.update_terminal_drawer_state
-  local view_or_error = context.view_or_error
 
 local function clamp(value, minimum, maximum)
   return math.max(minimum, math.min(maximum, value))
+end
+
+local function view_or_error(session_id)
+  local view, err = rex.session.view{ session_id = session_id }
+  if view == nil then
+    error(err or "unable to inspect the Rex session", 0)
+  end
+  return view
+end
+
+local function find_block_layer(view, block_id)
+  for _, window in ipairs(view.windows or {}) do
+    for _, layer in ipairs(window.layers or {}) do
+      for index, block in ipairs(layer.blocks or {}) do
+        if block.block_id == block_id then
+          return layer, index
+        end
+      end
+    end
+  end
+  return nil, nil
 end
 
 rex.action{
@@ -77,9 +94,6 @@ rex.action{
     }
     if result == nil then
       error(err or "unable to adjust the floating pane", 0)
-    end
-    if layer_contains_terminal_drawer(layer) then
-      update_terminal_drawer_state(ctx.session_id, "floating", bounds, true)
     end
     return {
       bounds = bounds,

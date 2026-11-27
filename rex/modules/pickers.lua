@@ -6,39 +6,17 @@ return function(context)
   local open_terminal_layer = context.open_terminal_layer
   local terminal_native_navigation_blocks = context.terminal_native_navigation_blocks
   local process_cwd = context.process_cwd
-  local write_atomic = context.write_atomic
   local rex_picker = context.rex_picker
   local rex_gh_dash = context.rex_gh_dash
   local rex_capture = context.rex_capture
   local scrollback_editor = context.scrollback_editor
   local rex_lazygit = context.rex_lazygit
   local password_picker_enabled = context.password_picker_enabled
-  local rose_pine_theme = context.rose_pine_theme
-  local rose_pine_moon_theme = context.rose_pine_moon_theme
-  local rose_pine_dawn_theme = context.rose_pine_dawn_theme
-  local rose_pine_dark_theme = context.rose_pine_dark_theme
-  -- The watcher is the sole focus owner for managed floats. With it
-  -- disabled, leave Rex's ordinary layer-close behavior alone.
-  local state_dir = (os.getenv("XDG_STATE_HOME") or (os.getenv("HOME") .. "/.local/state")) .. "/rex/picker-focus"
 
-  local function open_picker(ctx, label, command, bounds, cwd, zoom)
-    table.insert(command, "--no-restore-focus")
-    local watch = context.picker_focus_watcher
-    if watch then
-      local mkdir = rex.exec({ "mkdir", "-p", state_dir }, { timeout = 2, stdout = false, stderr = false })
-      watch = mkdir ~= nil and mkdir.ok
-      if not watch then rex.log("warn", "Unable to prepare picker focus directory") end
-    end
+  local function open_picker(_ctx, label, command, bounds, cwd)
     local layer = open_terminal_layer(label, command, bounds, cwd)
     for _, id in ipairs(layer.block_ids) do
       terminal_native_navigation_blocks[id] = true
-      if watch and layer.revision then
-        local path = state_dir .. "/" .. id:gsub("[^%w._-]", "_") .. ".tsv"
-        local ok, err = write_atomic(path, function(f)
-          f:write(table.concat({ ctx.session_id, ctx.block_id, tostring(layer.revision), zoom and "1" or "0" }, "\t") .. "\n")
-        end)
-        if not ok then rex.log("warn", "Unable to remember picker focus: " .. tostring(err)) end
-      end
     end
     return layer
   end
@@ -168,9 +146,9 @@ rex.action{
     end
     for _, page in ipairs(items) do
       if id == page.id then
-        local opened, err = rex.exec({ "/usr/bin/open", "https://www.superlogical.com/rex/docs/" .. page.id },
-          { timeout = 3, stdout = false, stderr = false })
-        if not opened or not opened.ok then error("Unable to open documentation: " .. tostring(err), 0) end
+        rex.client.queue("client.url.open", {
+          url = "https://www.superlogical.com/rex/docs/" .. page.id,
+        })
         return true
       end
     end
@@ -274,30 +252,6 @@ rex.action{
       { 0.05, 0.05, 0.9, 0.9 },
       cwd
     )
-  end,
-}
-
-rex.action{
-  name = "install_rose_pine_themes",
-  title = "Install Rosé Pine Themes",
-  description = "Import the complete official Rosé Pine family and select the managed light and dark variants.",
-  category = "View",
-  keywords = "appearance colors light dark theme",
-  run = function()
-    -- Import the unselected dark variant first, then Dawn, then the managed
-    -- dark variant. The final light and dark imports become Rex's selected
-    -- themes for their respective appearances.
-    local other_dark_theme = rose_pine_theme
-    if rose_pine_dark_theme == rose_pine_theme then
-      other_dark_theme = rose_pine_moon_theme
-    end
-    rex.client.queue("client.theme.import", { path = other_dark_theme })
-    rex.client.queue("client.theme.import", { path = rose_pine_dawn_theme })
-    rex.client.queue("client.theme.import", { path = rose_pine_dark_theme })
-    return {
-      official = { rose_pine_theme, rose_pine_moon_theme, rose_pine_dawn_theme },
-      selected = { light = rose_pine_dawn_theme, dark = rose_pine_dark_theme },
-    }
   end,
 }
 

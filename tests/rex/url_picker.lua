@@ -1,5 +1,5 @@
 -- Run from the repository root with lua tests/rex/url_picker.lua.
-local actions, picked, execs = {}, nil, {}
+local actions, picked, execs, queued = {}, nil, {}, {}
 local pick_reply = {}
 local html, blob_calls = "", 0
 
@@ -7,6 +7,7 @@ rex = {
   action = function(action) actions[action.name] = action.run end,
   ui = { pick = function(prompt) picked = prompt; return pick_reply[1], pick_reply[2] end },
   exec = function(argv, opts) table.insert(execs, { argv = argv, opts = opts }); return { ok = true, code = 0 } end,
+  client = { queue = function(action, args) table.insert(queued, { action = action, args = args }) end },
   block = { call = function(creator, method, args)
     assert(creator == "com.superlogical.terminal" and args.block_id == "block:b")
     if method == "format" then
@@ -58,7 +59,8 @@ assert(run({ block_id = "block:b" }, {}) == true)
 assert(picked.items[1].id == "1" and picked.items[2].id == "2")
 assert(picked.items[1].title == "Docs" and picked.items[1].subtitle == "b.example/two")
 assert(picked.items[2].title == "a.example/one?tab=files#L10")
-assert(execs[#execs].argv[1] == "/usr/bin/open" and execs[#execs].argv[2] == "https://a.example/one?tab=files#L10")
+assert(queued[#queued].action == "client.url.open")
+assert(queued[#queued].args.url == "https://a.example/one?tab=files#L10")
 
 -- Copy sends the URL to the clipboard on stdin; background keeps the browser behind.
 pick_reply = { "1" }

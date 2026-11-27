@@ -4,6 +4,7 @@
 return function(context)
   local terminal_creator = context.terminal_creator
   local terminal_shell = context.terminal_shell
+  local terminal_command = context.terminal_command
   local process_cwd = context.process_cwd
   local normalized_process_name = context.normalized_process_name
   local git_project = context.git_project
@@ -54,7 +55,7 @@ return function(context)
   end
 
   -- Prefer a plain tab whose pane already sits in the worktree; fall back to
-  -- an agent tab there. Floating layers, such as the drawer, don't count.
+  -- an agent tab there. Floating layers don't count.
   local function find_window(session_id, path)
     local view = rex.session.view{ session_id = session_id }
     if view == nil then return nil end
@@ -80,14 +81,20 @@ return function(context)
   local function open_worktree(ctx, path, label)
     local index = find_window(ctx.session_id, path)
     if index ~= nil then
-      local ok = rex.invoke("tab_goto_with_terminal_drawer", { index = index })
-      if not ok then rex.client.queue("client.tab.goto", { index = index }) end
+      rex.client.queue("client.tab.goto", { index = index })
       return { path = path, opened = false, index = index }
     end
     local created, err = rex.session.new_window{
       session_id = ctx.session_id,
       window_label = label,
-      layout = rex.layout.block{ flavor = terminal_shell, options = { cwd = path } },
+      layout = rex.layout.block{
+        flavor = terminal_shell,
+        options = {
+          command = { terminal_command },
+          cwd = path,
+          shell = "none",
+        },
+      },
     }
     if created == nil then error("Unable to open a tab for " .. path .. ": " .. tostring(err), 0) end
     return { path = path, opened = true, window_id = created.window_id }

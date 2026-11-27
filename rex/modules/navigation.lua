@@ -1,9 +1,6 @@
 return function(context)
   local yabai = context.yabai
   local terminal_creator = context.terminal_creator
-  local terminal_shell = context.terminal_shell
-  local terminal_drawer_label = context.terminal_drawer_label
-  local terminal_drawer_return_focus_by_session = context.terminal_drawer_return_focus_by_session
   local terminal_owns_navigation = context.terminal_owns_navigation
   local active_block_id = context.active_block_id
   local active_window = context.active_window
@@ -93,33 +90,6 @@ local function visible_block_in_direction(view, source_block_id, direction)
   return best_block
 end
 
-local function is_terminal_drawer_block(view, block_id)
-  local window = active_window(view)
-  for _, layer in ipairs(window and window.layers or {}) do
-    for _, block in ipairs(layer.blocks or {}) do
-      if block.block_id == block_id
-        and block.label == terminal_drawer_label
-        and block.creator_name == terminal_creator
-        and block.flavor == terminal_shell
-      then
-        return true
-      end
-    end
-  end
-  return false
-end
-
-local function remember_drawer_navigation_entry(session_id, view, source_block_id, target_block_id)
-  if session_id ~= nil
-    and source_block_id ~= nil
-    and target_block_id ~= nil
-    and source_block_id ~= target_block_id
-    and is_terminal_drawer_block(view, target_block_id)
-  then
-    terminal_drawer_return_focus_by_session[session_id] = source_block_id
-  end
-end
-
 local native_direction = {
   down = "south",
   left = "west",
@@ -185,7 +155,6 @@ local function navigate_rex_or_native(direction, key)
 
     local after_block = active_block_id(after)
     if before_block ~= nil and after_block ~= nil and after_block ~= before_block then
-      remember_drawer_navigation_entry(session_id, after, before_block, after_block)
       return true
     end
 
@@ -201,8 +170,6 @@ local function navigate_rex_or_native(direction, key)
         }
         if fallback == nil then
           rex.log("warn", "Unable to focus the fallback Rex pane: " .. tostring(fallback_err))
-        else
-          remember_drawer_navigation_entry(session_id, before, before_block, target_block)
         end
         return true
       end
