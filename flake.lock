@@ -159,11 +159,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1795020410,
-        "narHash": "sha256-jLaMTY8coXJGiUoS76Bz7ngyAkWOiEZhRXL6kslGq+8=",
+        "lastModified": 1795752822,
+        "narHash": "sha256-FWgOQ9wlJU2kDZsPBBHiZSFR0GolPSWN43AaZZme3Zg=",
         "owner": "markfeinstein",
         "repo": "rex-picker",
-        "rev": "ec87d7730ca30d514da253ec475948d5a6ba76e8",
+        "rev": "bfe94da7177de92be13d57b8ca159e2eb6a9e02a",
         "type": "github"
       },
       "original": {
