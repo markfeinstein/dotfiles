@@ -206,6 +206,7 @@ in
           "rex/lib/common.lua".source = "${rexConfigSource}/lib/common.lua";
           "rex/modules/navigation.lua".source = "${rexConfigSource}/modules/navigation.lua";
           "rex/modules/geometry.lua".source = "${rexConfigSource}/modules/geometry.lua";
+          "rex/modules/scratch.lua".source = "${rexConfigSource}/modules/scratch.lua";
           "rex/modules/pickers.lua".source = "${rexConfigSource}/modules/pickers.lua";
           "rex/modules/bindings.lua".source = "${rexConfigSource}/modules/bindings.lua";
           "rex/modules/prompts.lua".source = "${rexConfigSource}/modules/prompts.lua";

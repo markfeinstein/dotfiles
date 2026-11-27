@@ -15,7 +15,7 @@ dofile("rex/modules/bindings.lua")({
   password_picker_enabled = false,
 })
 
-assert(bindings["cmd+`"].action == "client.quick_terminal.toggle")
+assert(bindings["cmd+`"].action == "toggle_scratch_terminal")
 assert(bindings["cmd+[Digit1]"].action == "client.tab.goto")
 assert(bindings["ctrl+space>[Digit1]"].action == "client.tab.goto")
 assert(bindings["ctrl+space>n"].action == "client.tab.next")

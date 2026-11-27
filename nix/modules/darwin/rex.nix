@@ -99,7 +99,7 @@ in
       "rex.client.remoteControl" = true;
       "rex.developer-mode-enabled" = true;
       "Workspace.experiments.usesNewQuickSwitcher" = true;
-      "Workspace.experiments.isQuickTerminalEnabled" = true;
+      "Workspace.experiments.isQuickTerminalEnabled" = false;
       "rex.server.tailnet-enabled" = cfg.tailnetEnable;
       "rex.server.automatic-restart-enabled" = true;
       "rex.server.block-plugin-reload-enabled" = false;

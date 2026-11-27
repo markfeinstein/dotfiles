@@ -149,6 +149,14 @@ load_module("geometry")({
   copy_bounds = copy_bounds,
 })
 
+load_module("scratch")({
+  terminal_creator = terminal_creator,
+  terminal_shell = terminal_shell,
+  terminal_command = terminal_command,
+  rex_cli = rex_capture,
+  process_cwd = common.process_cwd,
+})
+
 load_module("pickers")({
   terminal_creator = terminal_creator,
   terminal_shell = terminal_shell,
