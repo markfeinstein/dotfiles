@@ -11,7 +11,7 @@ rex.bind("cmd+l", "open_url_picker")
 rex.bind("cmd+shift+l", "session.next")
 rex.bind("cmd+b", "client.sidebar.toggle")
 rex.bind("cmd+m", "model_picker")
-rex.bind("cmd+`", "toggle_terminal_drawer")
+rex.bind("cmd+`", "pane.new_floating")
 -- yabai maps Cmd-H to this private direct chord so macOS Hide cannot win
 -- and no prefix timing is involved.
 rex.bind("ctrl+alt+cmd+[KeyH]", "client.sidebar.toggle")
