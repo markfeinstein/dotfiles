@@ -1,6 +1,7 @@
 return function(context)
   local terminal_creator = context.terminal_creator
   local terminal_shell = context.terminal_shell
+  local terminal_drawer_command = context.terminal_drawer_command
   local terminal_drawer_label = context.terminal_drawer_label
   local terminal_drawer_presets = context.terminal_drawer_presets
   local terminal_drawer_return_focus_by_session = context.terminal_drawer_return_focus_by_session
@@ -82,7 +83,10 @@ local function find_terminal_drawer(session_id)
 end
 
 local function terminal_drawer_options()
-  local options = {}
+  local options = {
+    command = { terminal_drawer_command },
+    shell = "none",
+  }
   local process = rex.block.call(terminal_creator, "process")
   local cwd = process_cwd(process)
   if cwd ~= nil then

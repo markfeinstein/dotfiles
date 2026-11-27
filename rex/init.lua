@@ -23,6 +23,7 @@ if policy_ok and theme_policy.dark_theme ~= nil then
 end
 local terminal_creator = "com.superlogical.terminal"
 local terminal_shell = "com.superlogical.terminal.shell"
+local terminal_drawer_command = "@terminal_drawer_command@"
 local terminal_drawer_label = "Terminal Drawer"
 local terminal_drawer_default_preset = "right"
 local terminal_drawer_presets = {
@@ -221,6 +222,7 @@ load_module("navigation")({
 local drawer = load_module("drawer")({
   terminal_creator = terminal_creator,
   terminal_shell = terminal_shell,
+  terminal_drawer_command = terminal_drawer_command,
   terminal_drawer_label = terminal_drawer_label,
   terminal_drawer_presets = terminal_drawer_presets,
   terminal_drawer_return_focus_by_session = terminal_drawer_return_focus_by_session,

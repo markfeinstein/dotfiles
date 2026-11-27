@@ -87,6 +87,7 @@ let
         rexCapture = lib.getExe rexCli;
         scrollbackEditor = lib.getExe managedNeovim;
         gitProject = lib.getExe pkgs.git-project;
+        terminalDrawerCommand = lib.getExe rexNushell;
       }
       ''
         cp -R ${../../../rex} "$out"
@@ -96,6 +97,7 @@ let
           --replace-fail '@rex_capture@' "$rexCapture" \
           --replace-fail '@scrollback_editor@' "$scrollbackEditor" \
           --replace-fail '@git_project@' "$gitProject" \
+          --replace-fail '@terminal_drawer_command@' "$terminalDrawerCommand" \
           --replace-fail \
             'local password_picker_enabled = false' \
             'local password_picker_enabled = ${if cfg.passwordPicker.enable then "true" else "false"}'
